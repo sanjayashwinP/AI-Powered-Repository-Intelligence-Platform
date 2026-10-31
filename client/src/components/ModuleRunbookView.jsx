@@ -97,10 +97,10 @@ export default function ModuleRunbookView({ repoId, repoOverview, onOpenFileInMo
           </div>
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>
-              Module Deep-Dive Runbooks & Architecture Flow
+              Architectural Deep Dives & Execution Flowcharts
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Explore the complete 6-tier architecture, request-to-database execution lifecycles, and senior-engineer improvements for every module.
+              Explore the multi-tier architecture, request-to-database execution lifecycles, and senior-engineer improvements for every module.
             </p>
           </div>
         </div>

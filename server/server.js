@@ -80,6 +80,40 @@ function registerSampleRepositories() {
       });
     }
   }
+
+  // Auto-restore previously uploaded repositories in uploads directory
+  if (fs.existsSync(UPLOADS_DIR)) {
+    const uploadEntries = fs.readdirSync(UPLOADS_DIR, { withFileTypes: true });
+    for (const entry of uploadEntries) {
+      if (entry.isDirectory()) {
+        const uploadPath = path.join(UPLOADS_DIR, entry.name);
+        try {
+          const analysis = analyzeProject(uploadPath);
+          const featureInventory = discoverFeatures(analysis, uploadPath);
+          let name = entry.name;
+          if (entry.name.startsWith('github-')) {
+            const parts = entry.name.replace('github-', '').split('-');
+            parts.pop(); // remove timestamp
+            const rawName = parts.join('-');
+            const firstDash = rawName.indexOf('-');
+            name = firstDash > 0 ? `${rawName.substring(0, firstDash)}/${rawName.substring(firstDash + 1)}` : rawName;
+          }
+          repoRegistry.set(entry.name, {
+            id: entry.name,
+            name,
+            description: `Imported repository (${analysis.fileCount} files, ${analysis.totalLines.toLocaleString()} lines)`,
+            path: uploadPath,
+            isSample: false,
+            analysis,
+            featureInventory,
+            addedAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.warn(`Could not restore upload ${entry.name}:`, e.message);
+        }
+      }
+    }
+  }
 }
 
 registerSampleRepositories();

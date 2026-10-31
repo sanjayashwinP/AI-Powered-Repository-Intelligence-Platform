@@ -116,16 +116,16 @@ export default function App() {
           className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
         >
-          <Layers size={18} />
-          Project Overview (Module A)
+          <Layers size={17} />
+          Architecture Overview
         </button>
 
         <button
           className={`tab-btn ${activeTab === 'features' ? 'active' : ''}`}
           onClick={() => setActiveTab('features')}
         >
-          <Search size={18} />
-          Feature Discovery Dashboard (Module B, C, E)
+          <Search size={17} />
+          Feature Explorer
           {featureInventory && (
             <span className="tab-badge">
               {featureInventory.stats.implemented}/{featureInventory.stats.total}
@@ -137,32 +137,32 @@ export default function App() {
           className={`tab-btn ${activeTab === 'modules' ? 'active' : ''}`}
           onClick={() => setActiveTab('modules')}
         >
-          <Cpu size={18} />
-          Module Deep Dives & Runbooks (Module I & J)
+          <Cpu size={17} />
+          Deep Dives & Runbooks
         </button>
 
         <button
           className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
           onClick={() => setActiveTab('chat')}
         >
-          <MessageSquare size={18} />
-          Conversational Assistant & QA (Module D, I, J, K)
+          <MessageSquare size={17} />
+          Codebase Intelligence Q&A
         </button>
 
         <button
           className={`tab-btn ${activeTab === 'where-to-implement' ? 'active' : ''}`}
           onClick={() => setActiveTab('where-to-implement')}
         >
-          <Compass size={18} />
-          Where Should I Implement? (Module G)
+          <Compass size={17} />
+          Where to Implement
         </button>
 
         <button
           className={`tab-btn ${activeTab === 'recommendations' ? 'active' : ''}`}
           onClick={() => setActiveTab('recommendations')}
         >
-          <Wrench size={18} />
-          Recommendations & Patch Studio (Module F & H)
+          <Wrench size={17} />
+          Code Health & Patches
         </button>
       </nav>
 

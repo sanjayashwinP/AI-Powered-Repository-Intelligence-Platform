@@ -37,23 +37,23 @@ export default function ProjectOverviewView({ repoOverview, onOpenFileInMonaco }
 
   const totalLines = analysis.totalLines || 1;
 
-  // 15 Architecture Sections
+  // Architecture Layers & Components
   const layerSections = [
-    { id: 'restControllers', label: '3. REST API Controllers', count: components.restControllers.length, icon: Server },
-    { id: 'serviceClasses', label: '4. Service Layer Classes', count: components.serviceClasses.length, icon: Cpu },
-    { id: 'repositoryDaoClasses', label: '5. Repository & DAO Classes', count: components.repositoryDaoClasses.length, icon: Database },
-    { id: 'databaseEntities', label: '6. Database Entities & Models', count: components.databaseEntities.length, icon: Boxes },
-    { id: 'dtos', label: '7. DTOs & Validation Schemas', count: components.dtos.length, icon: FileText },
-    { id: 'securityConfig', label: '8. Security Configuration', count: components.securityConfig.length, icon: Shield },
-    { id: 'authAndAuthz', label: '9. Authentication & Authorization', count: Object.values(components.authAndAuthz).flat().length, icon: KeyRound },
-    { id: 'frontendCode', label: '1. Frontend Source Code', count: components.frontendCode.length, icon: Globe },
-    { id: 'backendCode', label: '2. Backend Source Code', count: components.backendCode.length, icon: Code2 },
-    { id: 'configFiles', label: '10. Configuration Files', count: components.configFiles.length, icon: Sliders },
-    { id: 'dbSchemaAndMigrations', label: '11. Database Schema & Migrations', count: components.dbSchemaAndMigrations.length, icon: Database },
-    { id: 'dependencies', label: '12. Project Dependencies', count: components.dependencies.length, icon: Package },
-    { id: 'tests', label: '13. Unit & Integration Tests', count: components.tests.length, icon: TestTube },
-    { id: 'documentation', label: '14. Documentation Files', count: components.documentation.length, icon: BookOpen },
-    { id: 'buildAndDeployment', label: '15. Build & Deployment Specs', count: components.buildAndDeployment.length, icon: Terminal }
+    { id: 'restControllers', label: 'REST API Controllers', count: components.restControllers.length, icon: Server },
+    { id: 'serviceClasses', label: 'Service Layer Classes', count: components.serviceClasses.length, icon: Cpu },
+    { id: 'repositoryDaoClasses', label: 'Repository & DAO Classes', count: components.repositoryDaoClasses.length, icon: Database },
+    { id: 'databaseEntities', label: 'Database Entities & Models', count: components.databaseEntities.length, icon: Boxes },
+    { id: 'dtos', label: 'DTOs & Validation Schemas', count: components.dtos.length, icon: FileText },
+    { id: 'securityConfig', label: 'Security Configuration', count: components.securityConfig.length, icon: Shield },
+    { id: 'authAndAuthz', label: 'Authentication & Authorization', count: Object.values(components.authAndAuthz).flat().length, icon: KeyRound },
+    { id: 'backendCode', label: 'Backend Source Code', count: components.backendCode.length, icon: Code2 },
+    { id: 'frontendCode', label: 'Frontend Source Code', count: components.frontendCode.length, icon: Globe },
+    { id: 'dbSchemaAndMigrations', label: 'Database Schema & Migrations', count: components.dbSchemaAndMigrations.length, icon: Database },
+    { id: 'configFiles', label: 'Configuration Files', count: components.configFiles.length, icon: Sliders },
+    { id: 'dependencies', label: 'Project Dependencies', count: components.dependencies.length, icon: Package },
+    { id: 'tests', label: 'Unit & Integration Tests', count: components.tests.length, icon: TestTube },
+    { id: 'documentation', label: 'Documentation Files', count: components.documentation.length, icon: BookOpen },
+    { id: 'buildAndDeployment', label: 'Build & Deployment Specs', count: components.buildAndDeployment.length, icon: Terminal }
   ];
 
   return (

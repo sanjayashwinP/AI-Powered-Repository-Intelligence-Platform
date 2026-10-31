@@ -33,7 +33,27 @@ export function answerRepositoryQuestion(repoId, userMessage, analysis, rootDir)
     query.includes('which files should i modify') ||
     (query.includes('controller') && (query.includes('where') || query.includes('add') || query.includes('component') || query.includes('wiring')));
 
-  // Intent 2: Suggestions to improve a module or feature
+  // Intent 2: Explain existing Controllers in the project
+  const isExplainControllers =
+    (query.includes('controller') || query.includes('controllers') || query.includes('api endpoint') || query.includes('api endpoints') || query.includes('rest api')) &&
+    (query.includes('explain') || query.includes('what is') || query.includes('what are') || query.includes('how does') || query.includes('how do') || query.includes('tell me about') || query.includes('describe') || query.includes('details') || query.includes('existing') || query.includes('implemented') || query.includes('list') || query.includes('show'));
+
+  // Intent 3: Explain Services / Business logic layer
+  const isExplainServices =
+    (query.includes('service') || query.includes('services') || query.includes('business logic') || query.includes('service layer')) &&
+    (query.includes('explain') || query.includes('what is') || query.includes('what are') || query.includes('how does') || query.includes('tell me about') || query.includes('describe') || query.includes('details') || query.includes('existing') || query.includes('implemented'));
+
+  // Intent 4: Explain Database / Entities / Repositories / Schema
+  const isExplainDatabase =
+    (query.includes('entity') || query.includes('entities') || query.includes('model') || query.includes('models') || query.includes('repository') || query.includes('repositories') || query.includes('database') || query.includes('schema') || query.includes('tables')) &&
+    (query.includes('explain') || query.includes('what is') || query.includes('what are') || query.includes('how does') || query.includes('tell me about') || query.includes('describe') || query.includes('details') || query.includes('existing') || query.includes('implemented'));
+
+  // Intent 5: Explain Security / Authentication
+  const isExplainSecurity =
+    (query.includes('security') || query.includes('auth') || query.includes('authentication') || query.includes('authorization') || query.includes('jwt') || query.includes('login') || query.includes('token') || query.includes('password') || query.includes('cors')) &&
+    (query.includes('explain') || query.includes('how does') || query.includes('tell me about') || query.includes('describe') || query.includes('how is') || query.includes('what is') || query.includes('check'));
+
+  // Intent 6: Suggestions to improve a module or feature
   const isImprovementQuery =
     query.includes('suggestion') ||
     query.includes('suggestions') ||
@@ -46,12 +66,12 @@ export function answerRepositoryQuestion(repoId, userMessage, analysis, rootDir)
     query.includes('best practices') ||
     query.includes('optimize');
 
-  // Intent 3: Explain specific module
+  // Intent 7: Explain specific module
   const isExplainModule =
     (query.includes('explain') || query.includes('how does') || query.includes('tell me about') || query.includes('break down') || query.includes('walk me through')) &&
     (query.includes('module') || query.includes('employee') || query.includes('auth') || query.includes('department') || query.includes('subscription') || query.includes('tenant') || query.includes('billing') || query.includes('task') || query.includes('user'));
 
-  // Intent 4: Explain project / architecture
+  // Intent 8: Explain project / architecture
   const isExplainProject =
     query.includes('explain the project') ||
     query.includes('explain this project') ||
@@ -68,6 +88,18 @@ export function answerRepositoryQuestion(repoId, userMessage, analysis, rootDir)
   if (isWhereToAdd) {
     const blueprint = planFeatureImplementation(userMessage, analysis);
     responseData = formatWhereToImplementAnswer(blueprint);
+  }
+  else if (isExplainControllers) {
+    responseData = formatControllerExplanationAnswer(userMessage, analysis, rootDir);
+  }
+  else if (isExplainServices) {
+    responseData = formatServiceExplanationAnswer(userMessage, analysis, rootDir);
+  }
+  else if (isExplainDatabase) {
+    responseData = formatDatabaseExplanationAnswer(userMessage, analysis, rootDir);
+  }
+  else if (isExplainSecurity) {
+    responseData = formatSecurityExplanationAnswer(userMessage, analysis, rootDir);
   }
   else if (isImprovementQuery) {
     responseData = formatImprovementSuggestionsAnswer(userMessage, analysis, rootDir);
@@ -114,7 +146,7 @@ export function answerRepositoryQuestion(repoId, userMessage, analysis, rootDir)
   }
   // 9. Follow-up: "Show me the code"
   else if (query.includes('show me the code') || query.includes('show code') || query.includes('generate code')) {
-    responseData = formatShowCodeAnswer(history, analysis);
+    responseData = formatShowCodeAnswer(history, analysis, rootDir);
   }
   // 10. Hybrid Keyword/Semantic Retrieval Fallback
   else {
@@ -211,6 +243,298 @@ function formatWhereToImplementAnswer(blueprint) {
   };
 }
 
+function formatControllerExplanationAnswer(userMessage, analysis, rootDir) {
+  const { components, technologies } = analysis;
+  const controllers = components.restControllers || [];
+
+  if (controllers.length === 0) {
+    const controllerFiles = (analysis.files || []).filter(f => f.name.toLowerCase().includes('controller') || f.name.toLowerCase().includes('router'));
+    return {
+      text: `### Controller Architecture Analysis\n\nNo explicit REST controllers were automatically classified.\n` +
+        `Discovered matching files: ${controllerFiles.map(f => `\`${f.path}\``).join(', ') || 'None'}\n` +
+        `Primary Framework: **${technologies.frameworks.join(', ') || 'Custom'}**\n\n` +
+        `To add a controller, ask: *"Where can I add my controller?"*`,
+      references: controllerFiles.map(f => ({
+        file: f.path,
+        class: f.name.replace(/\.[^/.]+$/, ''),
+        method: 'Declared Symbols',
+        lines: '1-30',
+        evidence: `File location: ${f.path}`
+      }))
+    };
+  }
+
+  const query = userMessage.toLowerCase();
+  let selectedControllers = controllers;
+  const specificCtrl = controllers.find(c => {
+    const name = (c.className || c.file || '').toLowerCase();
+    const base = name.replace('controller', '').replace(/\.[^/.]+$/, '');
+    return query.includes(name) || (base.length > 2 && query.includes(base));
+  });
+  if (specificCtrl) {
+    selectedControllers = [specificCtrl];
+  }
+
+  let text = `### Architecture Breakdown: REST Controllers in Repository\n\n`;
+  text += `This project exposes **${controllers.reduce((acc, c) => acc + (c.endpointCount || 0), 0)} REST endpoints** across **${controllers.length} controller(s)** using **${technologies.frameworks.join(', ') || technologies.languages[0] || 'Web API'}**.\n\n`;
+
+  const references = [];
+
+  for (const ctrl of selectedControllers) {
+    text += `## Controller: \`${ctrl.className}\`\n\n`;
+    text += `* **File Location:** \`${ctrl.file}\`\n`;
+    if (ctrl.baseRoute) {
+      text += `* **Base URI Path:** \`${ctrl.baseRoute}\`\n`;
+    }
+
+    // Try reading file content
+    let fileContent = '';
+    const fullPath = path.join(rootDir, ctrl.file);
+    if (fs.existsSync(fullPath)) {
+      try {
+        fileContent = fs.readFileSync(fullPath, 'utf8');
+      } catch (e) {
+        console.warn(`Could not read ${fullPath}:`, e.message);
+      }
+    }
+
+    // Check annotations and injected services
+    const isCrossOrigin = fileContent.includes('@CrossOrigin');
+    
+    // Injected services match
+    const serviceMatches = [];
+    const serviceRegex = /(?:private\s+(?:final\s+)?([A-Za-z0-9_]+Service)\s+([a-zA-Z0-9_]+))/g;
+    let sMatch;
+    while ((sMatch = serviceRegex.exec(fileContent)) !== null) {
+      serviceMatches.push(`${sMatch[1]} \`${sMatch[2]}\``);
+    }
+
+    if (serviceMatches.length > 0) {
+      text += `* **Injected Business Dependencies:** ${serviceMatches.join(', ')}\n`;
+    }
+    if (isCrossOrigin) {
+      text += `* **Cross-Origin Configuration:** \`@CrossOrigin("*")\` allows CORS requests from web client frontends.\n`;
+    }
+
+    text += `* **Architectural Role:** Presentation-tier boundary mapping HTTP request methods to business services.\n\n`;
+
+    text += `#### 1. Discovered Endpoints Specification Table\n\n`;
+    if (ctrl.endpoints && ctrl.endpoints.length > 0) {
+      text += `| HTTP Method | Route URL Path | Handler Method | Parameters / DTO | Response Type | Line |\n`;
+      text += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      ctrl.endpoints.forEach(ep => {
+        let paramStr = 'None';
+        let returnType = 'ResponseEntity';
+        if (fileContent) {
+          const lines = fileContent.split('\n');
+          const nextLines = lines.slice(Math.max(0, ep.lineNumber - 1), ep.lineNumber + 4).join(' ');
+          const methodSigMatch = nextLines.match(/(?:public|protected|private)?\s+([A-Za-z0-9_<>,\s]+)\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)/);
+          if (methodSigMatch) {
+            returnType = methodSigMatch[1].trim();
+            const rawParams = methodSigMatch[3].trim();
+            paramStr = rawParams ? rawParams.replace(/\s+/g, ' ') : 'None';
+          }
+        }
+
+        text += `| \`${ep.method}\` | \`${ep.path}\` | \`${ep.handler}()\` | \`${paramStr.replace(/\|/g, '/')}\` | \`${returnType.replace(/\|/g, '/')}\` | \`L${ep.lineNumber}\` |\n`;
+
+        references.push({
+          file: ctrl.file,
+          class: ctrl.className,
+          method: `${ep.method} ${ep.path} -> ${ep.handler}()`,
+          lines: `${ep.lineNumber}-${ep.lineNumber + 8}`,
+          evidence: `Endpoint mapped in ${ctrl.className} at line ${ep.lineNumber}`
+        });
+      });
+    } else {
+      text += `*No individual endpoints declared in this controller file.*\n\n`;
+    }
+
+    text += `\n#### 2. Detailed Endpoint Logic & Execution Trace:\n`;
+    if (ctrl.endpoints && ctrl.endpoints.length > 0) {
+      ctrl.endpoints.forEach((ep, i) => {
+        const verb = ep.method === 'GET' ? 'Retrieves and returns' :
+                     ep.method === 'POST' ? 'Validates, creates, and persists' :
+                     ep.method === 'PUT' ? 'Updates existing state for' :
+                     ep.method === 'DELETE' ? 'Permanently removes' : 'Processes';
+        text += `${i + 1}. **\`${ep.method} ${ep.path}\` (Method: \`${ep.handler}\`, Line: ${ep.lineNumber})**\n`;
+        text += `   - **Function:** ${verb} resource at \`${ep.path}\`.\n`;
+        text += `   - **Service Delegation:** Calls injected \`${serviceMatches[0] || 'Service'}\` to execute business rules and database queries.\n`;
+        if (ep.method === 'POST') {
+          text += `   - **HTTP Status:** \`201 CREATED\` with the persisted entity.\n`;
+        } else if (ep.method === 'DELETE') {
+          text += `   - **HTTP Status:** \`200 OK\` or \`204 NO CONTENT\` upon completion.\n`;
+        } else {
+          text += `   - **HTTP Status:** \`200 OK\`.\n`;
+        }
+      });
+    }
+
+    if (fileContent) {
+      const displayContent = fileContent.length > 2500 ? fileContent.substring(0, 2500) + '\n    // ... remaining implementation' : fileContent;
+      const lang = ctrl.file.endsWith('.java') ? 'java' : ctrl.file.endsWith('.ts') ? 'typescript' : 'javascript';
+      text += `\n#### 3. Controller Implementation in Repository:\n`;
+      text += `\`\`\`${lang}\n${displayContent}\n\`\`\`\n\n`;
+    }
+
+    text += `#### 4. Senior Architect Observations & Opportunities for Improvement:\n`;
+    text += `* **RESTful Path Standardization:** Standardize URI routes to use resource noun plurals (e.g. \`GET /api/employees\` instead of \`/api/getallEmployees\`, and \`POST /api/employees\` instead of \`/api/addEmployee\`).\n`;
+    text += `* **DTO Isolation:** Separate database JPA entities from HTTP payloads by introducing dedicated \`EmployeeDto\` with validation constraints (\`@NotBlank\`, \`@Email\`).\n`;
+    text += `* **Constructor Injection:** Replace field-level \`@Autowired\` with constructor injection or Lombok \`@RequiredArgsConstructor\` to ensure immutability and simple unit testability.\n\n`;
+  }
+
+  return { text, references };
+}
+
+function formatServiceExplanationAnswer(userMessage, analysis, rootDir) {
+  const { components, technologies } = analysis;
+  const services = components.serviceClasses || [];
+
+  if (services.length === 0) {
+    return {
+      text: `### Service Layer Architecture Analysis\n\nNo dedicated Service classes were classified in this repository.\n` +
+        `Framework: **${technologies.frameworks.join(', ') || 'Custom'}**`,
+      references: []
+    };
+  }
+
+  let text = `### Architecture Breakdown: Service Layer in Repository\n\n`;
+  text += `The service layer encapsulates business logic, transactional workflows, and entity orchestration. This repository contains **${services.length} service component(s)**.\n\n`;
+
+  const references = [];
+
+  for (const s of services) {
+    text += `## Service: \`${s.className}\` (${s.type || 'Service'})\n`;
+    text += `* **File Location:** \`${s.file}\`\n`;
+
+    let fileContent = '';
+    const fullPath = path.join(rootDir, s.file);
+    if (fs.existsSync(fullPath)) {
+      try {
+        fileContent = fs.readFileSync(fullPath, 'utf8');
+      } catch (e) {}
+    }
+
+    if (s.methods && s.methods.length > 0) {
+      text += `* **Declared Business Methods:**\n`;
+      s.methods.forEach(m => {
+        text += `  - \`${m.name}()\` (Line ${m.lineNumber || 1})\n`;
+      });
+    }
+
+    if (fileContent) {
+      const displayContent = fileContent.length > 2500 ? fileContent.substring(0, 2500) + '\n    // ... remaining methods' : fileContent;
+      const lang = s.file.endsWith('.java') ? 'java' : 'typescript';
+      text += `\n#### Implementation Source Code:\n`;
+      text += `\`\`\`${lang}\n${displayContent}\n\`\`\`\n\n`;
+    }
+
+    references.push({
+      file: s.file,
+      class: s.className,
+      method: 'Service Methods',
+      lines: '1-45',
+      evidence: `Service layer declaration in ${s.file}`
+    });
+  }
+
+  return { text, references };
+}
+
+function formatDatabaseExplanationAnswer(userMessage, analysis, rootDir) {
+  const { components, technologies } = analysis;
+  const entities = components.databaseEntities || [];
+  const repos = components.repositoryDaoClasses || [];
+
+  let text = `### Architecture Breakdown: Database & Persistence Layer\n\n`;
+  text += `* **Primary Database / ORM:** ${technologies.databases.join(', ') || 'Relational SQL'}\n`;
+  text += `* **Entities / Models:** ${entities.length}\n`;
+  text += `* **Repositories / DAOs:** ${repos.length}\n\n`;
+
+  const references = [];
+
+  text += `#### 1. Database Entities & Model Schema:\n\n`;
+  for (const ent of entities) {
+    text += `* **Entity \`${ent.className}\` (Table: \`${ent.tableName || ent.className.toLowerCase()}\`):**\n`;
+    text += `  - **File:** \`${ent.file}\`\n`;
+    text += `  - **Mapped Attributes:** ${ent.fieldCount || 4} fields\n`;
+    if (ent.relationships && ent.relationships.length > 0) {
+      text += `  - **Relationships:** ${ent.relationships.map(r => r.type || 'JPA Relation').join(', ')}\n`;
+    }
+
+    let fileContent = '';
+    const fullPath = path.join(rootDir, ent.file);
+    if (fs.existsSync(fullPath)) {
+      try {
+        fileContent = fs.readFileSync(fullPath, 'utf8');
+        const lang = ent.file.endsWith('.java') ? 'java' : ent.file.endsWith('.prisma') ? 'prisma' : 'python';
+        text += `\n\`\`\`${lang}\n${fileContent.substring(0, 1800)}\n\`\`\`\n\n`;
+      } catch (e) {}
+    }
+
+    references.push({
+      file: ent.file,
+      class: ent.className,
+      method: 'Entity Model',
+      lines: '1-35',
+      evidence: `@Entity mapped in ${ent.file}`
+    });
+  }
+
+  text += `#### 2. Repository & Data Access Classes:\n\n`;
+  for (const r of repos) {
+    text += `* **\`${r.className}\` (${r.type || 'Repository'}):** \`${r.file}\`\n`;
+    references.push({
+      file: r.file,
+      class: r.className,
+      method: 'Repository Interface',
+      lines: '1-25',
+      evidence: `Data access interface in ${r.file}`
+    });
+  }
+
+  return { text, references };
+}
+
+function formatSecurityExplanationAnswer(userMessage, analysis, rootDir) {
+  const { components, technologies } = analysis;
+  const sec = components.securityConfig || [];
+
+  let text = `### Architecture Breakdown: Security & Authentication\n\n`;
+  text += `* **Security Policies:** ${technologies.security.join(', ') || 'Standard Web Security'}\n`;
+  text += `* **Configuration Files Found:** ${sec.length}\n\n`;
+
+  const references = [];
+
+  if (sec.length > 0) {
+    sec.forEach(s => {
+      text += `* **Security Config File:** \`${s.file}\` (${s.className || 'Config'})\n`;
+      let fileContent = '';
+      const fullPath = path.join(rootDir, s.file);
+      if (fs.existsSync(fullPath)) {
+        try {
+          fileContent = fs.readFileSync(fullPath, 'utf8');
+          text += `\`\`\`java\n${fileContent.substring(0, 1500)}\n\`\`\`\n\n`;
+        } catch (e) {}
+      }
+      references.push({
+        file: s.file,
+        class: s.className || 'SecurityConfig',
+        method: 'Security Setup',
+        lines: '1-40',
+        evidence: `Security configuration: ${s.file}`
+      });
+    });
+  } else {
+    text += `No dedicated \`SecurityFilterChain\` or JWT filter files were detected.\n`;
+    text += `Endpoints currently rely on standard HTTP access rules without stateless JWT or method-level authorization.\n\n`;
+    text += `To implement JWT authentication and RBAC, ask: *"Where should I implement JWT authentication?"*`;
+  }
+
+  return { text, references };
+}
+
 function formatProjectDeepDiveAnswer(analysis, rootDir) {
   const { architecture, technologies, components, fileCount, totalLines } = analysis;
 
@@ -296,56 +620,58 @@ function formatModuleExplanationAnswer(userMessage, analysis, rootDir) {
   }
 
   if (targetModule === 'employee') {
+    const empCtrl = (analysis.components.restControllers || []).find(c => (c.className || c.file || '').toLowerCase().includes('employee')) || { file: 'EmployeeController.java', className: 'EmployeeController', endpoints: [] };
+    const empService = (analysis.components.serviceClasses || []).find(s => (s.className || s.file || '').toLowerCase().includes('employee')) || { file: 'EmployeeService.java', className: 'EmployeeService' };
+    const empRepo = (analysis.components.repositoryDaoClasses || []).find(r => (r.className || r.file || '').toLowerCase().includes('employee')) || { file: 'EmployeeRepository.java', className: 'EmployeeRepository' };
+    const empEntity = (analysis.components.databaseEntities || []).find(e => (e.className || e.file || '').toLowerCase().includes('employee')) || { file: 'Employee.java', className: 'Employee' };
+    const empDto = (analysis.components.dtos || []).find(d => (d.name || d.file || '').toLowerCase().includes('employee')) || null;
+
     const text = `### Deep-Dive Runbook: Employee Management Module\n\n` +
       `**Module Responsibility:**\n` +
-      `The Employee Management module encapsulates the end-to-end personnel lifecycle for the enterprise organization. It provides paginated employee directories, full CRUD operations, department association mapping, compensation salary tracking, and administrative mutation protection.\n\n` +
+      `The Employee Management module encapsulates the end-to-end personnel lifecycle for the application. It provides employee directories, full CRUD operations, database persistence, and RESTful HTTP interface endpoints.\n\n` +
       `#### 1. Multi-Tier Architectural Component Map:\n` +
-      `* **REST Controller Layer:** \`backend/src/main/java/com/repomind/enterprise/controller/EmployeeController.java\`\n` +
-      `  - Exposes 5 endpoints under base path \`/api/v1/employees\`.\n` +
-      `  - Handlers: \`getAllEmployees()\` (paginated), \`getEmployeeById(id)\`, \`createEmployee(dto)\`, \`updateEmployee(id, dto)\`, \`deleteEmployee(id)\`.\n` +
-      `* **DTO / Validation Layer:** \`backend/src/main/java/com/repomind/enterprise/dto/EmployeeRequestDTO.java\`\n` +
-      `  - Enforces Jakarta Bean Validation: \`@NotBlank firstName\`, \`@NotBlank lastName\`, \`@Email @NotBlank email\`, \`@Positive @NotNull salary\`.\n` +
-      `* **Business Service Layer:** \`backend/src/main/java/com/repomind/enterprise/service/EmployeeService.java\` & \`EmployeeServiceImpl.java\`\n` +
-      `  - Manages transactional business rules, verifies email uniqueness against existing records, and associates Department foreign entities.\n` +
-      `* **Repository / DAO Layer:** \`backend/src/main/java/com/repomind/enterprise/repository/EmployeeRepository.java\`\n` +
-      `  - Extends \`JpaRepository<Employee, Long>\`; generates SQL \`LIMIT/OFFSET\` pagination and query derivation like \`findByDepartmentId()\`.\n` +
-      `* **Database Entity & Schema:** \`backend/src/main/java/com/repomind/enterprise/entity/Employee.java\`\n` +
-      `  - Maps to table \`employees\` with primary key \`BIGSERIAL id\`, unique index on \`email\`, and \`@ManyToOne(fetch = FetchType.LAZY)\` relationship with \`Department\`.\n` +
-      `* **Frontend UI Layer:** \`frontend/src/pages/Dashboard.jsx\`\n` +
-      `  - Client table view with dynamic keyword filtering, server-side pagination (Prev/Next buttons), Create/Edit modal dialogs, and delete confirmations.\n\n` +
+      `* **REST Controller Layer:** \`${empCtrl.file}\` (\`${empCtrl.className}\`)\n` +
+      `  - Exposes ${empCtrl.endpoints?.length || 'CRUD'} endpoint(s) mapped under \`${empCtrl.baseRoute || '/api'}\`.\n` +
+      `  - Handlers: ${empCtrl.endpoints?.map(e => `\`${e.method} ${e.path}\``).join(', ') || 'CRUD endpoints'}.\n` +
+      (empDto ? `* **DTO / Validation Layer:** \`${empDto.file}\` (\`${empDto.name}\`)\n` : `* **DTO / Model Layer:** Direct entity mapping via \`${empEntity.className}\` (Recommendation: introduce dedicated \`EmployeeDto\` to separate domain models from HTTP payloads).\n`) +
+      `* **Business Service Layer:** \`${empService.file}\` (\`${empService.className}\`)\n` +
+      `  - Manages transactional business logic, domain invariants, and database repository operations.\n` +
+      `* **Repository / DAO Layer:** \`${empRepo.file}\` (\`${empRepo.className}\`)\n` +
+      `  - Spring Data JPA repository interface enabling database queries.\n` +
+      `* **Database Entity & Schema:** \`${empEntity.file}\` (\`${empEntity.className}\`)\n` +
+      `  - Maps to database table \`${empEntity.tableName || 'employee'}\` with primary key identification and column mappings.\n\n` +
       `#### 2. Step-by-Step Request Execution Flow:\n` +
-      `1. **User Interaction (React UI):** User enters employee data in \`Dashboard.jsx\` and clicks "Create Employee".\n` +
-      `2. **HTTP Dispatch (\`api.js\`):** Axios sends \`POST /api/v1/employees\` attaching \`Authorization: Bearer <token>\` from localStorage.\n` +
-      `3. **Filter Interception (\`JwtAuthenticationFilter.java\`):** Intercepts request, decodes HMAC-SHA256 signature, extracts user role, and sets \`SecurityContextHolder\`.\n` +
-      `4. **Controller Ingestion (\`EmployeeController.java:45\`):** Parses payload into \`EmployeeRequestDTO\`; \`@Valid\` verifies validation constraints; \`@PreAuthorize("hasRole('ADMIN')")\` verifies administrative clearance.\n` +
-      `5. **Service Transaction (\`EmployeeServiceImpl.java:30\`):** \`@Transactional\` executes business logic, checks \`employeeRepository.existsByEmail()\`, loads target \`Department\`, and builds \`Employee\` entity.\n` +
-      `6. **Database Persistence (\`EmployeeRepository.java\`):** Spring Data JPA generates \`INSERT INTO employees (...) VALUES (...)\` and returns generated ID.\n` +
-      `7. **Response Serialization & DOM Update:** Returns HTTP \`201 CREATED\` with JSON body; React client updates state and re-renders table row without browser refresh.\n\n` +
-      `#### 3. Security & Validation Protections:\n` +
-      `* Read queries (\`GET /employees\`) are accessible to all authenticated users (\`ROLE_USER\`, \`ROLE_ADMIN\`).\n` +
-      `* Mutation operations (\`POST\`, \`PUT\`, \`DELETE\`) are strictly restricted via \`@PreAuthorize("hasRole('ADMIN')")\`. Unprivileged users receive HTTP 403 Forbidden.`;
+      `1. **Client Request:** Client dispatches HTTP request (e.g. \`GET /api/getallEmployees\` or \`POST /api/addEmployee\`).\n` +
+      `2. **Controller Routing (\`${empCtrl.className}\`):** Spring MVC router invokes the corresponding controller handler method.\n` +
+      `3. **Service Delegation (\`${empService.className}\`):** Controller calls the injected business service.\n` +
+      `4. **Database Access (\`${empRepo.className}\`):** Service invokes Spring Data JPA repository methods.\n` +
+      `5. **Response Serialization:** Controller packages entity/collection into \`ResponseEntity\` with HTTP 200/201 status code.\n\n` +
+      `#### 3. Improvement Roadmap for this Module:\n` +
+      `* **Standardize REST URIs:** Migrate endpoints to standard RESTful conventions (\`GET /api/employees\`, \`POST /api/employees\`, \`GET /api/employees/{id}\`).\n` +
+      `* **Add DTO Layer:** Introduce \`EmployeeDto\` to prevent exposing database internals directly over HTTP.\n` +
+      `* **Constructor Injection:** Migrate \`@Autowired\` to constructor injection for cleaner testing and immutability.`;
 
     const references = [
       {
-        file: 'backend/src/main/java/com/repomind/enterprise/controller/EmployeeController.java',
-        class: 'EmployeeController',
-        method: 'getAllEmployees() & createEmployee()',
-        lines: '25-50',
-        evidence: '@RestController @RequestMapping("/employees") @PreAuthorize("hasRole(\'ADMIN\')")'
+        file: empCtrl.file,
+        class: empCtrl.className,
+        method: 'REST Endpoints',
+        lines: '1-40',
+        evidence: `Controller declaration in ${empCtrl.file}`
       },
       {
-        file: 'backend/src/main/java/com/repomind/enterprise/service/EmployeeServiceImpl.java',
-        class: 'EmployeeServiceImpl',
-        method: 'create() / getAllEmployees()',
-        lines: '30-65',
-        evidence: 'employeeRepository.save(employee);'
+        file: empService.file,
+        class: empService.className,
+        method: 'Business Methods',
+        lines: '1-30',
+        evidence: `Service layer in ${empService.file}`
       },
       {
-        file: 'backend/src/main/java/com/repomind/enterprise/entity/Employee.java',
-        class: 'Employee',
-        method: 'Entity Declaration',
-        lines: '18-40',
-        evidence: '@Entity @Table(name = "employees") @ManyToOne(fetch = FetchType.LAZY)'
+        file: empEntity.file,
+        class: empEntity.className,
+        method: 'Database Entity',
+        lines: '1-30',
+        evidence: `Model definition in ${empEntity.file}`
       }
     ];
 
@@ -353,83 +679,85 @@ function formatModuleExplanationAnswer(userMessage, analysis, rootDir) {
   }
 
   if (targetModule === 'auth') {
+    const authControllers = (analysis.components.restControllers || []).filter(c => 
+      (c.className || c.file || '').toLowerCase().includes('auth') || 
+      (c.className || c.file || '').toLowerCase().includes('user') || 
+      (c.className || c.file || '').toLowerCase().includes('login')
+    );
+    const secConfigs = analysis.components.securityConfig || [];
+    const authEntities = (analysis.components.databaseEntities || []).filter(e => 
+      (e.className || e.file || '').toLowerCase().includes('user') || 
+      (e.className || e.file || '').toLowerCase().includes('account') || 
+      (e.className || e.file || '').toLowerCase().includes('role')
+    );
+
+    if (authControllers.length === 0 && secConfigs.length === 0) {
+      const text = `### Security & Authentication Analysis for ${analysis.repoName || 'Repository'}\n\n` +
+        `**Status:** No dedicated Authentication Controllers or Spring Security configuration files were discovered in this codebase.\n\n` +
+        `#### Architectural Assessment:\n` +
+        `* **Endpoint Exposure:** All exposed REST API endpoints (including \`${(analysis.components.restControllers[0]?.endpoints || []).map(e => e.path).slice(0, 4).join('`, `') || '/api/*'}\`) are currently public and accessible without authentication headers.\n` +
+        `* **Identity Management:** There are no user credential entities, BCrypt password hashing utilities, or session management filters configured.\n` +
+        `* **Stateless Token Verification:** No JSON Web Token (JWT) filter (\`OncePerRequestFilter\`) is actively intercepting HTTP requests.\n\n` +
+        `#### Recommended Authentication Implementation Plan:\n` +
+        `1. **Create User & Role Entities:** Implement \`User.java\` with \`username\`, BCrypt \`password_hash\`, and \`Role\` enums.\n` +
+        `2. **Add Security Dependency:** Include \`spring-boot-starter-security\` and \`jjwt-api\` in your build descriptor.\n` +
+        `3. **Implement SecurityFilterChain:** Configure stateless \`SessionCreationPolicy.STATELESS\` and register \`JwtAuthenticationFilter\`.\n` +
+        `4. **Expose Auth Endpoints:** Add \`AuthController\` with \`POST /api/auth/register\` and \`POST /api/auth/login\`.\n\n` +
+        `> **To get drop-in boilerplate code for JWT authentication, ask:** *"Where should I implement JWT authentication?"*`;
+
+      return { text, references: [] };
+    }
+
     const text = `### Deep-Dive Runbook: Authentication & Security Module\n\n` +
       `**Module Responsibility:**\n` +
-      `Manages user identity lifecycle, credential verification, stateless JWT token generation and validation, password cryptographic hashing with BCrypt, and role-based authorization guards.\n\n` +
-      `#### 1. Multi-Tier Architectural Component Map:\n` +
-      `* **REST Controller Layer:** \`backend/src/main/java/com/repomind/enterprise/controller/AuthController.java\`\n` +
-      `  - Exposes \`POST /api/v1/auth/register\` and \`POST /api/v1/auth/login\` (both public endpoints).\n` +
-      `* **DTO / Validation Layer:** \`LoginRequestDTO.java\`, \`RegisterRequestDTO.java\`, and \`AuthResponseDTO.java\`\n` +
-      `  - Validates username alphanumeric formatting, valid email syntax, and minimum 6-character password complexity.\n` +
-      `* **Business Service Layer:** \`backend/src/main/java/com/repomind/enterprise/service/AuthService.java\` & \`JwtService.java\`\n` +
-      `  - Invokes Spring Security's \`AuthenticationManager\` to authenticate credentials against database hashes; generates HMAC-SHA256 tokens.\n` +
-      `* **Filter Interceptor:** \`backend/src/main/java/com/repomind/enterprise/config/JwtAuthenticationFilter.java\`\n` +
-      `  - Extends \`OncePerRequestFilter\`; extracts \`Bearer <token>\` header on every incoming request, validates expiry, and sets \`SecurityContextHolder\`.\n` +
-      `* **Database Entity & Schema:** \`backend/src/main/java/com/repomind/enterprise/entity/User.java\`\n` +
-      `  - Maps to table \`users\` with \`username\`, \`password\` (60-char BCrypt hash), and \`role\` (default \`ROLE_USER\`).\n` +
-      `* **Frontend UI Layer:** \`frontend/src/pages/Login.jsx\`\n` +
-      `  - Login and Registration forms with token persistence in \`localStorage\` and redirection to dashboard upon authentication.\n\n` +
-      `#### 2. Step-by-Step Authentication Lifecycle Flow:\n` +
-      `1. **Credentials Submission:** User enters username and password in \`Login.jsx\`.\n` +
-      `2. **REST Call:** \`authApi.login()\` dispatches POST to \`/api/v1/auth/login\`.\n` +
-      `3. **Validation & Lookup:** \`AuthService.login()\` retrieves user record from \`UserRepository\`; \`passwordEncoder.matches()\` checks raw input against stored BCrypt hash.\n` +
-      `4. **Token Minting:** \`JwtService.generateToken()\` signs an HMAC-SHA256 JWT containing username, role claim, and 24-hour expiration timestamp.\n` +
-      `5. **Client Response:** Returns \`AuthResponseDTO\` with token string; client attaches token to all subsequent Axios requests.`;
+      `Manages user identity lifecycle, credential verification, token-based authorization guards, and security interceptors.\n\n` +
+      `#### 1. Discovered Security & Auth Components:\n` +
+      `* **Controllers:** ${authControllers.map(c => `\`${c.file}\``).join(', ') || 'None'}\n` +
+      `* **Security Configurations:** ${secConfigs.map(s => `\`${s.file}\``).join(', ') || 'None'}\n` +
+      `* **User/Identity Entities:** ${authEntities.map(e => `\`${e.file}\``).join(', ') || 'None'}\n\n` +
+      `#### 2. Security Lifecycle Flow:\n` +
+      `1. Client submits credentials via login endpoint.\n` +
+      `2. Authentication manager verifies credentials against database hashes.\n` +
+      `3. Server returns signed authorization token for subsequent requests.\n\n` +
+      `> Ask *"Where should I implement JWT authentication?"* to view wiring steps and drop-in code.`;
 
-    const references = [
-      {
-        file: 'backend/src/main/java/com/repomind/enterprise/controller/AuthController.java',
-        class: 'AuthController',
-        method: 'login() / register()',
-        lines: '22-38',
-        evidence: 'public ResponseEntity<AuthResponseDTO> login(@Valid @RequestBody LoginRequestDTO request)'
-      },
-      {
-        file: 'backend/src/main/java/com/repomind/enterprise/config/JwtAuthenticationFilter.java',
-        class: 'JwtAuthenticationFilter',
-        method: 'doFilterInternal()',
-        lines: '25-45',
-        evidence: 'SecurityContextHolder.getContext().setAuthentication(authToken);'
-      }
-    ];
+    const references = secConfigs.map(s => ({
+      file: s.file,
+      class: s.className || 'SecurityConfig',
+      method: 'securityFilterChain()',
+      lines: '1-40',
+      evidence: `Security configuration: ${s.file}`
+    }));
 
     return { text, references };
   }
 
   if (targetModule === 'department') {
+    const deptCtrl = (analysis.components.restControllers || []).find(c => (c.className || c.file || '').toLowerCase().includes('dept') || (c.className || c.file || '').toLowerCase().includes('department'));
+    const deptEntity = (analysis.components.databaseEntities || []).find(e => (e.className || e.file || '').toLowerCase().includes('dept') || (e.className || e.file || '').toLowerCase().includes('department'));
+    const deptService = (analysis.components.serviceClasses || []).find(s => (s.className || s.file || '').toLowerCase().includes('dept') || (s.className || s.file || '').toLowerCase().includes('department'));
+
+    if (!deptCtrl && !deptEntity) {
+      const text = `### Department & Organization Module Analysis\n\n` +
+        `**Status:** No dedicated Department controller or entity was discovered in **${analysis.repoName || 'this repository'}**.\n\n` +
+        `The current repository centers on employee personnel management. To add a Department module with \`DepartmentController\`, \`DepartmentService\`, and \`Department\` JPA entity, ask:\n\n` +
+        `> *"Where can I add my controller and Department feature?"*`;
+      return { text, references: [] };
+    }
+
     const text = `### Deep-Dive Runbook: Department & Organization Module\n\n` +
       `**Module Responsibility:**\n` +
-      `Manages organizational organizational units, department hierarchies, budget allocations, and parent-child entity mappings with employees.\n\n` +
+      `Manages organizational units, department hierarchies, and relationships with employees.\n\n` +
       `#### 1. Multi-Tier Architectural Component Map:\n` +
-      `* **REST Controller Layer:** \`backend/src/main/java/com/repomind/enterprise/controller/DepartmentController.java\`\n` +
-      `  - Exposes \`GET /api/v1/departments\`, \`POST /api/v1/departments\`, and \`GET /api/v1/departments/{id}/employees\`.\n` +
-      `* **DTO / Validation Layer:** \`backend/src/main/java/com/repomind/enterprise/dto/DepartmentRequestDTO.java\`\n` +
-      `  - Enforces \`@NotBlank name\` and \`@NotBlank code\`.\n` +
-      `* **Business Service Layer:** \`backend/src/main/java/com/repomind/enterprise/service/DepartmentService.java\`\n` +
-      `  - Handles department creation, budget tracking, and employee membership associations.\n` +
-      `* **Repository / DAO Layer:** \`backend/src/main/java/com/repomind/enterprise/repository/DepartmentRepository.java\`\n` +
-      `  - Extends \`JpaRepository<Department, Long>\` with custom derived queries.\n` +
-      `* **Database Entity & Schema:** \`backend/src/main/java/com/repomind/enterprise/entity/Department.java\`\n` +
-      `  - Maps to table \`departments\` with \`@OneToMany(mappedBy = "department", fetch = FetchType.LAZY) List<Employee> employees\`.\n` +
-      `* **Frontend UI Layer:** \`frontend/src/pages/Dashboard.jsx\`\n` +
-      `  - Filter dropdowns and department assignment selectors in employee forms.`;
+      (deptCtrl ? `* **REST Controller Layer:** \`${deptCtrl.file}\` (\`${deptCtrl.className}\`)\n` : '') +
+      (deptService ? `* **Business Service Layer:** \`${deptService.file}\` (\`${deptService.className}\`)\n` : '') +
+      (deptEntity ? `* **Database Entity & Schema:** \`${deptEntity.file}\` (\`${deptEntity.className}\`)\n` : '') +
+      `\n#### 2. Request Flow:\n` +
+      `Client requests are routed through controller to service layer and persisted via JPA repositories.`;
 
-    const references = [
-      {
-        file: 'backend/src/main/java/com/repomind/enterprise/controller/DepartmentController.java',
-        class: 'DepartmentController',
-        method: 'getAllDepartments()',
-        lines: '20-35',
-        evidence: 'Exposes department REST endpoints.'
-      },
-      {
-        file: 'backend/src/main/java/com/repomind/enterprise/entity/Department.java',
-        class: 'Department',
-        method: 'Entity Declaration',
-        lines: '15-32',
-        evidence: '@OneToMany(mappedBy = "department") private List<Employee> employees;'
-      }
-    ];
+    const references = [];
+    if (deptCtrl) references.push({ file: deptCtrl.file, class: deptCtrl.className, method: 'Endpoints', lines: '1-30', evidence: deptCtrl.file });
+    if (deptEntity) references.push({ file: deptEntity.file, class: deptEntity.className, method: 'Entity', lines: '1-30', evidence: deptEntity.file });
 
     return { text, references };
   }
@@ -875,7 +1203,7 @@ function formatQualitySecurityAnswer(query, analysis, rootDir) {
   return { text, references };
 }
 
-function formatShowCodeAnswer(history, analysis) {
+function formatShowCodeAnswer(history, analysis, rootDir) {
   const lastUserMsg = history.filter(h => h.role === 'user').slice(-2)[0]?.content || '';
 
   if (lastUserMsg.toLowerCase().includes('jwt')) {
@@ -907,7 +1235,7 @@ function formatShowCodeAnswer(history, analysis) {
       `    }\n` +
       `}\n` +
       `\`\`\`\n\n` +
-      `#### 2. Modified \`backend/src/main/java/com/repomind/enterprise/config/SecurityConfig.java\`\n` +
+      `#### 2. Modified Security Configuration\n` +
       `\`\`\`java\n` +
       `// Inside securityFilterChain:\n` +
       `.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n` +
@@ -916,7 +1244,7 @@ function formatShowCodeAnswer(history, analysis) {
 
     const references = [
       {
-        file: 'backend/src/main/java/com/repomind/enterprise/config/SecurityConfig.java',
+        file: analysis.components.securityConfig?.[0]?.file || 'SecurityConfig.java',
         class: 'SecurityConfig',
         method: 'securityFilterChain()',
         lines: '25-40',
@@ -927,40 +1255,41 @@ function formatShowCodeAnswer(history, analysis) {
     return { text, references };
   }
 
-  // Default code generation response
-  const text = `### Source Code Snippet from Repository\n\n` +
-    `\`\`\`java\n` +
-    `// backend/src/main/java/com/repomind/enterprise/controller/EmployeeController.java\n` +
-    `@RestController\n` +
-    `@RequestMapping("/employees")\n` +
-    `@RequiredArgsConstructor\n` +
-    `@CrossOrigin(origins = "*")\n` +
-    `public class EmployeeController {\n` +
-    `    private final EmployeeService employeeService;\n\n` +
-    `    @GetMapping\n` +
-    `    public ResponseEntity<Page<Employee>> getAllEmployees(\n` +
-    `            @RequestParam(defaultValue = "0") int page,\n` +
-    `            @RequestParam(defaultValue = "10") int size) {\n` +
-    `        return ResponseEntity.ok(employeeService.getAllEmployees(PageRequest.of(page, size)));\n` +
-    `    }\n` +
-    `}\n` +
-    `\`\`\``;
+  // Check if repository has controllers to display real source code
+  const primaryCtrl = analysis.components.restControllers?.[0];
+  if (primaryCtrl && rootDir) {
+    const fullPath = path.join(rootDir, primaryCtrl.file);
+    if (fs.existsSync(fullPath)) {
+      try {
+        const content = fs.readFileSync(fullPath, 'utf8');
+        const lines = content.split('\n').slice(0, 45).join('\n');
+        const text = `### Source Code: \`${primaryCtrl.className}\` (\`${primaryCtrl.file}\`)\n\n` +
+          `\`\`\`java\n${lines}\n// ... [Lines 1-45]\n\`\`\``;
 
-  const references = [
-    {
-      file: 'backend/src/main/java/com/repomind/enterprise/controller/EmployeeController.java',
-      class: 'EmployeeController',
-      method: 'getAllEmployees()',
-      lines: '20-35',
-      evidence: 'Controller endpoint with pagination'
+        const references = [
+          {
+            file: primaryCtrl.file,
+            class: primaryCtrl.className,
+            method: primaryCtrl.endpoints?.[0]?.handler || 'Controller Handler',
+            lines: '1-45',
+            evidence: `Controller declaration in ${primaryCtrl.file}`
+          }
+        ];
+        return { text, references };
+      } catch (e) {}
     }
-  ];
+  }
 
-  return { text, references };
+  // Fallback snippet
+  const text = `### Repository Code Snippet\n\n` +
+    `No primary controller source file could be read directly from the filesystem.`;
+
+  return { text, references: [] };
 }
 
 function performHybridRetrievalAnswer(userMessage, analysis, rootDir) {
-  const keywords = userMessage.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'what', 'how', 'where', 'why', 'can', 'explain', 'tell', 'show', 'project', 'repository', 'this', 'that', 'code', 'existing', 'any', 'about']);
+  const keywords = userMessage.toLowerCase().split(/[\s,?.!]+/).filter(w => w.length > 2 && !stopWords.has(w));
   const matchedFiles = [];
 
   for (const file of analysis.files) {
@@ -969,8 +1298,8 @@ function performHybridRetrievalAnswer(userMessage, analysis, rootDir) {
     const pathLower = file.path.toLowerCase();
 
     keywords.forEach(kw => {
-      if (nameLower.includes(kw)) score += 5;
-      if (pathLower.includes(kw)) score += 3;
+      if (nameLower.includes(kw)) score += 8;
+      if (pathLower.includes(kw)) score += 4;
     });
 
     if (score > 0) {
@@ -981,30 +1310,52 @@ function performHybridRetrievalAnswer(userMessage, analysis, rootDir) {
   matchedFiles.sort((a, b) => b.score - a.score);
   const topMatches = matchedFiles.slice(0, 3);
 
-  let text = `### Repository Grounded Analysis for: "${userMessage}"\n\n`;
+  let text = `### Technical Analysis: "${userMessage}"\n\n`;
+
+  const references = [];
 
   if (topMatches.length > 0) {
-    text += `Based on hybrid static code retrieval across the repository files, the most relevant components matching your query are:\n\n`;
-    topMatches.forEach(m => {
-      text += `* **\`${m.file}\`**: Relevant source module identified via AST & keyword scoring.\n`;
-    });
-    text += `\nYou can click on any of the cited references below to inspect the source code directly in the embedded Monaco Editor.`;
-  } else {
-    text += `Static inspection of the repository did not locate explicit matches for "${userMessage}".\n` +
-      `The repository primarily consists of:\n` +
-      `* Framework: **${analysis.technologies.frameworks.join(', ') || 'Custom'}**\n` +
-      `* Controllers: **${analysis.components.restControllers.length}**\n` +
-      `* Entities: **${analysis.components.databaseEntities.length}**\n\n` +
-      `Try asking about specific features like **Authentication**, **CRUD operations**, **Database schema**, or **"Where should I implement [Feature]?"**.`;
-  }
+    text += `Static AST analysis of the repository identified the following key source components directly addressing your inquiry:\n\n`;
+    
+    topMatches.forEach((m, idx) => {
+      text += `#### ${idx + 1}. \`${m.name}\` (\`${m.file}\`)\n`;
+      let fileSnippet = '';
+      const fullPath = path.join(rootDir, m.file);
+      if (fs.existsSync(fullPath)) {
+        try {
+          const content = fs.readFileSync(fullPath, 'utf8');
+          const lines = content.split('\n');
+          const snippetLines = lines.slice(0, 35).join('\n');
+          const ext = path.extname(m.file).replace('.', '');
+          const lang = ext === 'java' ? 'java' : ext === 'ts' ? 'typescript' : ext === 'py' ? 'python' : 'javascript';
+          text += `\`\`\`${lang}\n${snippetLines}\n// ... [Lines 1-35]\n\`\`\`\n\n`;
+        } catch (e) {}
+      }
 
-  const references = topMatches.map(m => ({
-    file: m.file,
-    class: m.name.replace(/\.[^/.]+$/, ''),
-    method: 'Declared symbols',
-    lines: '1-30',
-    evidence: `File matched repository query: ${m.file}`
-  }));
+      references.push({
+        file: m.file,
+        class: m.name.replace(/\.[^/.]+$/, ''),
+        method: 'Declared Symbols & Methods',
+        lines: '1-35',
+        evidence: `Direct source match: ${m.file}`
+      });
+    });
+
+    text += `> Click on any cited file reference below to inspect the full source implementation with Monaco syntax highlighting.`;
+  } else {
+    text += `Static inspection of the repository did not locate explicit symbol matches for "${userMessage}".\n\n` +
+      `**Repository Technical Summary:**\n` +
+      `* Primary Framework: **${analysis.technologies.frameworks.join(', ') || 'Custom'}**\n` +
+      `* REST Controllers: **${analysis.components.restControllers.length}**\n` +
+      `* Services: **${analysis.components.serviceClasses.length}**\n` +
+      `* Entities: **${analysis.components.databaseEntities.length}**\n\n` +
+      `**Suggested Queries:**\n` +
+      `* *"Explain the existing controller in the project"*\n` +
+      `* *"Where can I add my controller?"*\n` +
+      `* *"Explain the service layer"*\n` +
+      `* *"Explain database entities & models"*\n` +
+      `* *"Suggest improvements for employee module"*`;
+  }
 
   return { text, references };
 }

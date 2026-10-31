@@ -24,10 +24,10 @@ export default function Navbar({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className="brand-title">RepoMind</span>
-            <span className="brand-badge">Module 22</span>
+            <span className="brand-badge">v2.4</span>
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-            Intelligent Repository Understanding & Feature Discovery
+            Repository Intelligence & Architecture Platform
           </div>
         </div>
       </div>
