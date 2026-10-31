@@ -1,0 +1,227 @@
+import React, { useState, useEffect } from 'react';
+import Navbar from './components/Navbar';
+import UploadModal from './components/UploadModal';
+import MonacoEditorModal from './components/MonacoEditorModal';
+import ProjectOverviewView from './components/ProjectOverviewView';
+import FeatureDiscoveryView from './components/FeatureDiscoveryView';
+import ConversationalQAView from './components/ConversationalQAView';
+import WhereToImplementView from './components/WhereToImplementView';
+import RecommendationsView from './components/RecommendationsView';
+
+import { 
+  Layers, 
+  Search, 
+  MessageSquare, 
+  Compass, 
+  Wrench, 
+  FileCode,
+  Loader2
+} from 'lucide-react';
+
+export default function App() {
+  const [repositories, setRepositories] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(null);
+  const [repoOverview, setRepoOverview] = useState(null);
+  const [featureInventory, setFeatureInventory] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'features' | 'chat' | 'where-to-implement' | 'recommendations'
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [monacoModal, setMonacoModal] = useState({
+    isOpen: false,
+    filePath: '',
+    targetLine: null
+  });
+  const [loading, setLoading] = useState(true);
+
+  // Fetch repositories on startup
+  useEffect(() => {
+    fetchRepositories();
+  }, []);
+
+  const fetchRepositories = async (selectId = null) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/repositories');
+      const data = await res.json();
+      const repos = data.repositories || [];
+      setRepositories(repos);
+
+      if (repos.length > 0) {
+        const toSelect = selectId 
+          ? repos.find(r => r.id === selectId) || repos[0]
+          : selectedRepo 
+            ? repos.find(r => r.id === selectedRepo.id) || repos[0]
+            : repos[0];
+        setSelectedRepo(toSelect);
+        loadRepoDetails(toSelect.id);
+      }
+    } catch (err) {
+      console.error('Failed to load repositories', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadRepoDetails = async (repoId) => {
+    try {
+      const [ovRes, featRes] = await Promise.all([
+        fetch(`/api/repository/${repoId}/overview`),
+        fetch(`/api/repository/${repoId}/features`)
+      ]);
+      const ovData = await ovRes.json();
+      const featData = await featRes.json();
+
+      if (ovRes.ok) setRepoOverview(ovData);
+      if (featRes.ok) setFeatureInventory(featData.featureInventory);
+    } catch (err) {
+      console.error('Failed to load repository details', err);
+    }
+  };
+
+  const handleSelectRepo = (repo) => {
+    setSelectedRepo(repo);
+    loadRepoDetails(repo.id);
+  };
+
+  const handleRepoUploaded = (newRepoId) => {
+    fetchRepositories(newRepoId);
+  };
+
+  const openFileInMonaco = (filePath, targetLine = 1) => {
+    setMonacoModal({
+      isOpen: true,
+      filePath,
+      targetLine
+    });
+  };
+
+  const closeMonacoModal = () => {
+    setMonacoModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  return (
+    <div className="app-container">
+      {/* Top Navbar */}
+      <Navbar
+        repositories={repositories}
+        selectedRepo={selectedRepo}
+        onSelectRepo={handleSelectRepo}
+        onOpenUploadModal={() => setIsUploadModalOpen(true)}
+      />
+
+      {/* Main Navigation Tabs Header */}
+      <nav className="main-nav-tabs">
+        <button
+          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          <Layers size={18} />
+          Project Overview (Module A)
+        </button>
+
+        <button
+          className={`tab-btn ${activeTab === 'features' ? 'active' : ''}`}
+          onClick={() => setActiveTab('features')}
+        >
+          <Search size={18} />
+          Feature Discovery Dashboard (Module B, C, E)
+          {featureInventory && (
+            <span className="tab-badge">
+              {featureInventory.stats.implemented}/{featureInventory.stats.total}
+            </span>
+          )}
+        </button>
+
+        <button
+          className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+        >
+          <MessageSquare size={18} />
+          Conversational Assistant & QA (Module D, I, J, K)
+        </button>
+
+        <button
+          className={`tab-btn ${activeTab === 'where-to-implement' ? 'active' : ''}`}
+          onClick={() => setActiveTab('where-to-implement')}
+        >
+          <Compass size={18} />
+          Where Should I Implement? (Module G)
+        </button>
+
+        <button
+          className={`tab-btn ${activeTab === 'recommendations' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recommendations')}
+        >
+          <Wrench size={18} />
+          Recommendations & Patch Studio (Module F & H)
+        </button>
+      </nav>
+
+      {/* Main Body Content */}
+      <main className="main-content">
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '5rem', color: 'var(--text-muted)' }}>
+            <Loader2 size={36} className="spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
+            <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>Analyzing software project AST structures...</p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <ProjectOverviewView
+                repoOverview={repoOverview}
+                onOpenFileInMonaco={openFileInMonaco}
+              />
+            )}
+
+            {activeTab === 'features' && (
+              <FeatureDiscoveryView
+                featureInventory={featureInventory}
+                onOpenFileInMonaco={openFileInMonaco}
+              />
+            )}
+
+            {activeTab === 'chat' && selectedRepo && (
+              <ConversationalQAView
+                repoId={selectedRepo.id}
+                repoName={selectedRepo.name}
+                onOpenFileInMonaco={openFileInMonaco}
+              />
+            )}
+
+            {activeTab === 'where-to-implement' && selectedRepo && (
+              <WhereToImplementView
+                repoId={selectedRepo.id}
+                onOpenFileInMonaco={openFileInMonaco}
+              />
+            )}
+
+            {activeTab === 'recommendations' && selectedRepo && (
+              <RecommendationsView
+                repoId={selectedRepo.id}
+                onOpenFileInMonaco={openFileInMonaco}
+              />
+            )}
+          </>
+        )}
+      </main>
+
+      {/* Global Monaco Editor & Code Inspector Modal */}
+      <MonacoEditorModal
+        isOpen={monacoModal.isOpen}
+        onClose={closeMonacoModal}
+        repoId={selectedRepo?.id}
+        filePath={monacoModal.filePath}
+        targetLine={monacoModal.targetLine}
+        files={repoOverview?.analysis?.files || []}
+      />
+
+      {/* Repository Upload / Import Modal */}
+      <UploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onRepoUploaded={handleRepoUploaded}
+        repositories={repositories}
+        onSelectRepo={handleSelectRepo}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,32 @@
+{
+  "name": "repomind",
+  "version": "1.0.0",
+  "description": "RepoMind - Intelligent Repository Understanding and Feature Discovery",
+  "main": "server/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"SERVER,CLIENT\" -c \"cyan.bold,magenta.bold\" \"npm run server\" \"npm run client\"",
+    "server": "node server/server.js",
+    "client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "node server/server.js"
+  },
+  "keywords": [
+    "repomind",
+    "repository-analysis",
+    "feature-discovery",
+    "ast",
+    "code-understanding"
+  ],
+  "author": "RepoMind Team",
+  "license": "MIT",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

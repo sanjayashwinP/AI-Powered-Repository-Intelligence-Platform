@@ -1,0 +1,11 @@
+fastapi>=0.104.1
+uvicorn>=0.24.0
+sqlalchemy>=2.0.23
+alembic>=1.13.0
+pydantic>=2.5.2
+pyjwt>=2.8.0
+passlib[bcrypt]>=1.7.4
+celery>=5.3.6
+redis>=5.0.1
+pytest>=7.4.3
+httpx>=0.25.2

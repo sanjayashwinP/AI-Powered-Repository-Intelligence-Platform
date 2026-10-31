@@ -1,0 +1,319 @@
+import React, { useState } from 'react';
+import { 
+  Compass, 
+  Layers, 
+  FileEdit, 
+  FilePlus, 
+  CheckCircle2, 
+  ArrowRight, 
+  ExternalLink,
+  Code2, 
+  Search,
+  Sparkles,
+  Loader2
+} from 'lucide-react';
+
+export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
+  const [featureQuery, setFeatureQuery] = useState('JWT Authentication');
+  const [blueprint, setBlueprint] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const quickFeatures = [
+    'JWT Authentication',
+    'Email Verification',
+    'Redis Caching',
+    'Server-Side Pagination',
+    'Admin Dashboard',
+    'Stripe Payment Gateway'
+  ];
+
+  const handleGeneratePlan = async (query) => {
+    const feature = query || featureQuery;
+    if (!feature || loading) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch(`/api/repository/${repoId}/plan-feature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBlueprint(data.blueprint);
+      } else {
+        setError(data.error || 'Failed to generate implementation blueprint.');
+      }
+    } catch (err) {
+      setError(`Network error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* Header & Feature Selector */}
+      <div className="glass-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem' }}>
+          <div style={{
+            width: 36,
+            height: 36,
+            borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff'
+          }}>
+            <Compass size={20} />
+          </div>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>
+              Where Should I Implement a New Feature?
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Inspects existing package hierarchies, conventions, and design tiers to formulate an exact architectural roadmap.
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Feature Chips */}
+        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+            Popular Features:
+          </span>
+          {quickFeatures.map(feat => (
+            <button
+              key={feat}
+              className={`chip ${featureQuery === feat ? 'active' : ''}`}
+              onClick={() => {
+                setFeatureQuery(feat);
+                handleGeneratePlan(feat);
+              }}
+            >
+              {feat}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom Feature Query Input */}
+        <form 
+          onSubmit={(e) => { e.preventDefault(); handleGeneratePlan(); }}
+          style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}
+        >
+          <div className="search-box" style={{ flex: 1 }}>
+            <Search size={18} color="var(--text-dim)" />
+            <input
+              type="text"
+              placeholder="e.g. 'I want to implement WebSocket chat', 'Add file upload'..."
+              value={featureQuery}
+              onChange={e => setFeatureQuery(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn-primary" disabled={loading || !featureQuery.trim()}>
+            {loading ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+            Generate Implementation Blueprint
+          </button>
+        </form>
+      </div>
+
+      {error && (
+        <div className="glass-card" style={{ borderColor: 'var(--accent-rose)', color: 'var(--accent-rose)', padding: '1rem' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Blueprint Display */}
+      {blueprint && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Blueprint Title & Architecture */}
+          <div className="glass-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="brand-badge" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc' }}>
+                ARCHITECTURE ROADMAP
+              </span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Target Feature: <strong style={{ color: '#fff' }}>{blueprint.feature}</strong>
+              </span>
+            </div>
+            <div style={{ marginTop: '0.75rem', fontSize: '0.92rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+              <strong>Existing Architecture Context:</strong> {blueprint.existingArchitecture}
+            </div>
+          </div>
+
+          {/* Side by Side: Existing Files to Modify vs New Files to Create */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            {/* Existing Files to Modify */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <FileEdit size={18} color="var(--accent-amber)" />
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
+                  Existing Files That Should Be Modified ({blueprint.existingFilesToModify.length})
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {blueprint.existingFilesToModify.map((f, idx) => (
+                  <div key={idx} style={{
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 700, color: '#fde68a' }}>
+                        {f.file}
+                      </span>
+                      <button 
+                        className="btn-secondary btn-sm"
+                        onClick={() => onOpenFileInMonaco(f.file, 1)}
+                        style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem' }}
+                      >
+                        <ExternalLink size={11} />
+                        View
+                      </button>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <strong>Why Modify:</strong> {f.reason}
+                    </p>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>
+                      <strong>Target Symbol:</strong> <code>{f.targetSymbol}</code>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* New Files to Create */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <FilePlus size={18} color="var(--accent-emerald)" />
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
+                  New Files That Should Be Created ({blueprint.newFilesToCreate.length})
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {blueprint.newFilesToCreate.map((f, idx) => (
+                  <div key={idx} style={{
+                    background: 'rgba(16, 185, 129, 0.05)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <span style={{
+                        background: 'var(--accent-emerald)',
+                        color: '#000',
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        padding: '0.1rem 0.35rem',
+                        borderRadius: '3px'
+                      }}>
+                        NEW FILE
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 700, color: '#86efac' }}>
+                        {f.file.replace('[NEW FILE] ', '')}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <strong>Purpose:</strong> {f.purpose}
+                    </p>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>
+                      <strong>Proposed Package:</strong> <code>{f.proposedPackage}</code>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Scope of Changes Across Layers */}
+          <div className="glass-card">
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
+              Scope of Changes Across Layers
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem' }}>
+                  BACKEND CHANGES
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{blueprint.backendChanges}</div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--secondary)', marginBottom: '0.25rem' }}>
+                  FRONTEND CHANGES
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{blueprint.frontendChanges}</div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-emerald)', marginBottom: '0.25rem' }}>
+                  DATABASE CHANGES
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{blueprint.databaseChanges}</div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-purple)', marginBottom: '0.25rem' }}>
+                  DEPENDENCIES REQUIRED
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>{blueprint.dependenciesRequired.join(', ')}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Implementation Sequence & Testing */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+            <div className="glass-card">
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '0.85rem' }}>
+                Implementation Sequence
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {blueprint.implementationSequence.map((step, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.6rem',
+                    fontSize: '0.85rem',
+                    color: '#e2e8f0',
+                    lineHeight: 1.45
+                  }}>
+                    <CheckCircle2 size={16} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass-card">
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '0.85rem' }}>
+                Required Verification Tests
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {blueprint.testingRequirements.map((test, idx) => (
+                  <div key={idx} style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.65rem 0.85rem',
+                    fontSize: '0.82rem',
+                    color: '#94a3b8'
+                  }}>
+                    {test}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
