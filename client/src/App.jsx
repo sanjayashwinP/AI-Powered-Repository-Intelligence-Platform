@@ -7,6 +7,7 @@ import FeatureDiscoveryView from './components/FeatureDiscoveryView';
 import ConversationalQAView from './components/ConversationalQAView';
 import WhereToImplementView from './components/WhereToImplementView';
 import RecommendationsView from './components/RecommendationsView';
+import ModuleRunbookView from './components/ModuleRunbookView';
 
 import { 
   Layers, 
@@ -15,7 +16,8 @@ import {
   Compass, 
   Wrench, 
   FileCode,
-  Loader2
+  Loader2,
+  Cpu
 } from 'lucide-react';
 
 export default function App() {
@@ -132,6 +134,14 @@ export default function App() {
         </button>
 
         <button
+          className={`tab-btn ${activeTab === 'modules' ? 'active' : ''}`}
+          onClick={() => setActiveTab('modules')}
+        >
+          <Cpu size={18} />
+          Module Deep Dives & Runbooks (Module I & J)
+        </button>
+
+        <button
           className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
           onClick={() => setActiveTab('chat')}
         >
@@ -176,6 +186,16 @@ export default function App() {
               <FeatureDiscoveryView
                 featureInventory={featureInventory}
                 onOpenFileInMonaco={openFileInMonaco}
+              />
+            )}
+
+            {activeTab === 'modules' && selectedRepo && (
+              <ModuleRunbookView
+                repoId={selectedRepo.id}
+                repoOverview={repoOverview}
+                onOpenFileInMonaco={openFileInMonaco}
+                onSwitchToChat={() => setActiveTab('chat')}
+                onSwitchToWhereToImplement={() => setActiveTab('where-to-implement')}
               />
             )}
 

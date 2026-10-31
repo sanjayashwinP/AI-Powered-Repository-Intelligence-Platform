@@ -62,9 +62,9 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
           ...prev,
           {
             role: 'assistant',
-            content: data.text,
-            references: data.references || [],
-            blueprint: data.blueprint,
+            content: data.text || data.answer || '',
+            references: data.references || data.citations || [],
+            blueprint: data.blueprint || (data.wiringInstructions ? { wiringInstructions: data.wiringInstructions, boilerplateCode: data.boilerplateCode } : null),
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
         ]);
@@ -94,15 +94,25 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
     }
   };
 
+  const [copiedIndex, setCopiedIndex] = useState(null);
+
+  const handleCopyCode = (code, key) => {
+    navigator.clipboard.writeText(code);
+    setCopiedIndex(key);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   const promptSuggestions = [
-    'What is this project about?',
-    'Does this project have authentication?',
-    'Explain the employee registration flow.',
-    'Where should I implement JWT authentication?',
+    'Where can I add my Controller?',
+    'Explain the Project Architecture',
+    'Explain the Employee module',
+    'Explain the Authentication module',
+    'Suggest improvements for Employee module',
+    'Suggest improvements for Auth module',
+    'Where should I implement Redis caching?',
+    'Explain the employee registration flow',
     'Are there security vulnerabilities?',
-    'Where should I add Redis caching?',
-    'Explain the database relationships.',
-    'Show me the code.'
+    'Where should I implement JWT authentication?'
   ];
 
   return (
@@ -133,7 +143,7 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
             </div>
             <div>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem', color: '#fff' }}>
-                RepoMind Conversational Assistant
+                RepoMind Senior Architecture Assistant
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 Repository Grounded Knowledge Index • {repoName}
@@ -174,11 +184,68 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
                   </span>
                 </div>
 
-                {/* Body Content with simple markdown rendering */}
+                {/* Explicit Wiring Banner if assistant response has wiringInstructions */}
+                {!isUser && msg.blueprint && msg.blueprint.wiringInstructions && (
+                  <div className="wiring-banner" style={{ marginBottom: '1rem' }}>
+                    <div className="wiring-header">
+                      <span className="wiring-badge">
+                        <Sparkles size={12} />
+                        EXACT COMPONENT PLACEMENT & WIRING
+                      </span>
+                      <button
+                        className={`code-copy-btn ${copiedIndex === `wiring-${idx}` ? 'copied' : ''}`}
+                        onClick={() => handleCopyCode(msg.blueprint.wiringInstructions, `wiring-${idx}`)}
+                      >
+                        <Code2 size={12} />
+                        {copiedIndex === `wiring-${idx}` ? 'Copied Instructions!' : 'Copy Instructions'}
+                      </button>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#38bdf8', marginBottom: '0.5rem' }}>
+                      It can be done right here in this component by doing this:
+                    </div>
+                    <div className="wiring-steps">
+                      {msg.blueprint.wiringInstructions
+                        .replace('It can be done right here in this component by doing this:\n', '')
+                        .split('\n')
+                        .filter(l => l.trim().length > 0)
+                        .map((stepText, sIdx) => (
+                          <div key={sIdx} className="wiring-step-item">
+                            <span className="wiring-step-num">{sIdx + 1}</span>
+                            <span style={{ whiteSpace: 'pre-wrap' }}>
+                              {stepText.replace(/^[0-9]+\.\s*/, '')}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Body Content with formatted rendering */}
                 <div 
                   style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}
                   dangerouslySetInnerHTML={{ __html: renderFormattedMarkdown(msg.content) }}
                 />
+
+                {/* Dedicated Boilerplate Code Card if present */}
+                {!isUser && msg.blueprint && msg.blueprint.boilerplateCode && (
+                  <div className="code-block-card">
+                    <div className="code-block-header">
+                      <span className="code-block-lang">
+                        <Code2 size={13} color="var(--primary)" />
+                        DROP-IN BOILERPLATE CODE
+                      </span>
+                      <button
+                        className={`code-copy-btn ${copiedIndex === `code-${idx}` ? 'copied' : ''}`}
+                        onClick={() => handleCopyCode(msg.blueprint.boilerplateCode, `code-${idx}`)}
+                      >
+                        {copiedIndex === `code-${idx}` ? 'Copied to Clipboard!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <pre className="code-block-body">
+                      <code>{msg.blueprint.boilerplateCode}</code>
+                    </pre>
+                  </div>
+                )}
 
                 {/* Verifiable Source Citations Box */}
                 {msg.references && msg.references.length > 0 && (
@@ -248,7 +315,7 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="chat-input-bar">
           <input
             type="text"
-            placeholder="Ask anything about this repository (e.g. 'Where should I implement JWT?', 'Explain registration flow')..."
+            placeholder="Ask anything (e.g. 'Where can I add my controller?', 'Explain employee module', 'Suggest improvements')..."
             value={inputQuery}
             onChange={e => setInputQuery(e.target.value)}
             disabled={loading}
@@ -264,10 +331,10 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.9rem', color: '#fff' }}>
           <Sparkles size={16} color="var(--primary)" />
-          <span>Suggested Questions</span>
+          <span>Quick Prompts & Runbooks</span>
         </div>
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Click any prompt to instantly query the repository knowledge index:
+          Click any prompt to instantly run verified architectural inspection:
         </p>
 
         <div className="prompt-suggestions">
@@ -287,12 +354,12 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
   );
 }
 
-// Simple Markdown formatting helper for bold, code, and lists
+// Markdown formatting helper with styled code blocks and headers
 function renderFormattedMarkdown(text) {
   if (!text) return '';
   return text
-    .replace(/^### (.*$)/gim, '<h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:700;color:#fff;margin:0.6rem 0 0.3rem;">$1</h3>')
-    .replace(/^#### (.*$)/gim, '<h4 style="font-family:var(--font-display);font-size:0.98rem;font-weight:700;color:#a5b4fc;margin:0.5rem 0 0.2rem;">$1</h4>')
+    .replace(/^### (.*$)/gim, '<h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:700;color:#fff;margin:0.8rem 0 0.35rem;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:0.3rem;">$1</h3>')
+    .replace(/^#### (.*$)/gim, '<h4 style="font-family:var(--font-display);font-size:0.98rem;font-weight:700;color:#a5b4fc;margin:0.6rem 0 0.25rem;">$1</h4>')
     .replace(/\*\*(.*?)\*\*/gim, '<strong style="color:#fff;">$1</strong>')
-    .replace(/`([^`]+)`/gim, '<code style="background:rgba(255,255,255,0.08);color:#93c5fd;padding:0.1rem 0.3rem;border-radius:4px;font-family:var(--font-mono);font-size:0.85em;">$1</code>');
+    .replace(/`([^`]+)`/gim, '<code style="background:rgba(255,255,255,0.08);color:#93c5fd;padding:0.12rem 0.35rem;border-radius:4px;font-family:var(--font-mono);font-size:0.85em;border:1px solid rgba(255,255,255,0.06);">$1</code>');
 }

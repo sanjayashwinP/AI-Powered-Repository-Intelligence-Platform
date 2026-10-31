@@ -19,14 +19,24 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [copiedCode, setCopiedCode] = useState(false);
+
   const quickFeatures = [
+    'Where can I add my Controller?',
+    'Payment Controller',
+    'Notification Controller',
     'JWT Authentication',
     'Email Verification',
     'Redis Caching',
     'Server-Side Pagination',
-    'Admin Dashboard',
     'Stripe Payment Gateway'
   ];
+
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
 
   const handleGeneratePlan = async (query) => {
     const feature = query || featureQuery;
@@ -73,7 +83,7 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
           </div>
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>
-              Where Should I Implement a New Feature?
+              Where Should I Implement a New Feature or Controller?
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Inspects existing package hierarchies, conventions, and design tiers to formulate an exact architectural roadmap.
@@ -84,7 +94,7 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
         {/* Quick Feature Chips */}
         <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-            Popular Features:
+            Popular Queries:
           </span>
           {quickFeatures.map(feat => (
             <button
@@ -109,7 +119,7 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
             <Search size={18} color="var(--text-dim)" />
             <input
               type="text"
-              placeholder="e.g. 'I want to implement WebSocket chat', 'Add file upload'..."
+              placeholder="e.g. 'Where can I add my controller?', 'Add Payment Controller', 'Redis Caching'..."
               value={featureQuery}
               onChange={e => setFeatureQuery(e.target.value)}
             />
@@ -144,6 +154,63 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
               <strong>Existing Architecture Context:</strong> {blueprint.existingArchitecture}
             </div>
           </div>
+
+          {/* Explicit Wiring Instructions Banner ("It can be done right here in this component by doing this:") */}
+          {blueprint.wiringInstructions && (
+            <div className="wiring-banner">
+              <div className="wiring-header">
+                <span className="wiring-badge">
+                  <Sparkles size={12} />
+                  EXACT PLACEMENT & WIRING INSTRUCTIONS
+                </span>
+                <button
+                  className={`code-copy-btn ${copiedCode ? 'copied' : ''}`}
+                  onClick={() => handleCopy(blueprint.wiringInstructions)}
+                >
+                  <Code2 size={12} />
+                  {copiedCode ? 'Copied Instructions!' : 'Copy Instructions'}
+                </button>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#38bdf8', marginBottom: '0.65rem' }}>
+                It can be done right here in this component by doing this:
+              </div>
+              <div className="wiring-steps">
+                {blueprint.wiringInstructions
+                  .replace('It can be done right here in this component by doing this:\n', '')
+                  .split('\n')
+                  .filter(l => l.trim().length > 0)
+                  .map((stepText, sIdx) => (
+                    <div key={sIdx} className="wiring-step-item">
+                      <span className="wiring-step-num">{sIdx + 1}</span>
+                      <span style={{ whiteSpace: 'pre-wrap' }}>
+                        {stepText.replace(/^[0-9]+\.\s*/, '')}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Ready-to-Drop Boilerplate Code Card */}
+          {blueprint.boilerplateCode && (
+            <div className="code-block-card">
+              <div className="code-block-header">
+                <span className="code-block-lang">
+                  <Code2 size={13} color="var(--primary)" />
+                  READY-TO-DROP BOILERPLATE IMPLEMENTATION
+                </span>
+                <button
+                  className={`code-copy-btn ${copiedCode ? 'copied' : ''}`}
+                  onClick={() => handleCopy(blueprint.boilerplateCode)}
+                >
+                  {copiedCode ? 'Copied to Clipboard!' : 'Copy Boilerplate Code'}
+                </button>
+              </div>
+              <pre className="code-block-body">
+                <code>{blueprint.boilerplateCode}</code>
+              </pre>
+            </div>
+          )}
 
           {/* Side by Side: Existing Files to Modify vs New Files to Create */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>

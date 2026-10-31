@@ -1,6 +1,6 @@
 /**
  * Architectural Advisor Engine
- * Answers: "Where should I implement [Feature]?"
+ * Answers: "Where should I implement [Feature]?" and "Where can I add my controller?"
  * 
  * Inspects existing repository conventions, package structures, frameworks,
  * and design patterns to output an exact, concrete implementation blueprint.
@@ -24,9 +24,13 @@ export function planFeatureImplementation(featureQuery, analysis) {
     if (javaFile) {
       const parts = javaFile.path.split('/src/main/java/')[1].split('/');
       parts.pop(); // remove filename
+      const subpackages = new Set(['config', 'controller', 'controllers', 'service', 'services', 'dto', 'dtos', 'entity', 'entities', 'repository', 'repositories', 'model', 'models']);
+      if (parts.length > 0 && subpackages.has(parts[parts.length - 1])) {
+        parts.pop();
+      }
       if (parts.length > 0) {
-        backendSrc = javaFile.path.substring(0, javaFile.path.indexOf(parts[parts.length - 1])) + parts[parts.length - 1];
         basePackage = parts.join('.');
+        backendSrc = javaFile.path.substring(0, javaFile.path.indexOf('/src/main/java/')) + '/src/main/java/' + parts.join('/');
       }
     }
   } else if (isNodeExpress) {
@@ -35,6 +39,22 @@ export function planFeatureImplementation(featureQuery, analysis) {
   } else if (isPython) {
     backendSrc = files.some(f => f.path.startsWith('app/')) ? 'app' : 'src';
     frontendSrc = 'frontend/src';
+  }
+
+  // Check if user specifically asks about adding a Controller or where to place code
+  if (
+    query.includes('controller') ||
+    query.includes('where can i add my controller') ||
+    query.includes('where to add controller') ||
+    query.includes('add a controller') ||
+    query.includes('add my controller') ||
+    query.includes('where can i add') ||
+    query.includes('where do i add') ||
+    query.includes('where to place') ||
+    query.includes('where should i place') ||
+    query.includes('endpoint')
+  ) {
+    return generateControllerPlacementBlueprint(featureQuery, analysis, backendSrc, frontendSrc, basePackage, isJavaSpring, isNodeExpress, isPython);
   }
 
   // Handle specific feature blueprints
@@ -56,11 +76,167 @@ export function planFeatureImplementation(featureQuery, analysis) {
   return generateGenericFeatureBlueprint(featureQuery, analysis, backendSrc, frontendSrc, basePackage);
 }
 
+/**
+ * Specialized Controller Placement & Wiring Blueprint
+ * Explicitly tells the user: "It can be done right here in this component by doing this..."
+ */
+function generateControllerPlacementBlueprint(query, analysis, backendSrc, frontendSrc, basePkg, isJava, isNode, isPy) {
+  // Extract resource name if mentioned (e.g. "PaymentController", "OrderController", "NotificationController")
+  const words = query.split(/[\s,]+/);
+  let resourceName = '';
+  for (const w of words) {
+    const clean = w.replace(/[^a-zA-Z]/g, '');
+    if (clean.toLowerCase().endsWith('controller') && clean.length > 'controller'.length) {
+      resourceName = clean.replace(/controller/i, '');
+      resourceName = resourceName.charAt(0).toUpperCase() + resourceName.slice(1);
+      break;
+    } else if (['payment', 'order', 'task', 'notification', 'report', 'audit', 'customer', 'item', 'user', 'subscription', 'billing', 'analytics', 'employee', 'department'].includes(clean.toLowerCase())) {
+      resourceName = clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+      break;
+    }
+  }
+
+  if (!resourceName || resourceName.length < 2) {
+    resourceName = 'CustomFeature';
+  }
+
+  const resourceLower = resourceName.toLowerCase();
+  const controllerClass = `${resourceName}Controller`;
+
+  if (isJava) {
+    return {
+      feature: `Adding ${controllerClass} & Wiring into Architecture`,
+      existingArchitecture: 'Spring Boot 3 Tiered Architecture (Controller -> Service -> Repository -> JPA Entity).',
+      wiringInstructions: `It can be done right here in this component by doing this:\n1. Place your new controller class in the dedicated controller directory: \`${backendSrc}/controller/${controllerClass}.java\`.\n2. Wire its security permissions in \`${backendSrc}/config/SecurityConfig.java\` inside the \`securityFilterChain\` bean by adding: \`.requestMatchers("/api/v1/${resourceLower}/**").authenticated()\`. \n3. Inject the corresponding business service \`${resourceName}Service\` into the controller using Lombok \`@RequiredArgsConstructor\` or constructor injection.\n4. Connect client-side communication in \`${frontendSrc}/services/api.js\` by exporting a new \`${resourceLower}Api\` object with HTTP methods.\n5. If this resource requires database persistence, map the entity in \`${backendSrc}/entity/${resourceName}.java\` and add Flyway migration in \`backend/src/main/resources/db/migration\`.`,
+      existingFilesToModify: [
+        {
+          file: `${backendSrc}/config/SecurityConfig.java`,
+          reason: `Wire the new /${resourceLower} endpoint into Spring Security filter chain to configure whether it is public (permitAll) or authenticated (hasRole).`,
+          targetSymbol: 'securityFilterChain(HttpSecurity http)'
+        },
+        {
+          file: `${frontendSrc}/services/api.js`,
+          reason: `Register API client methods to call /${resourceLower} endpoints with automatic JWT token attachment.`,
+          targetSymbol: 'export const api'
+        }
+      ],
+      newFilesToCreate: [
+        {
+          file: `[NEW FILE] ${backendSrc}/controller/${controllerClass}.java`,
+          purpose: `REST controller handling HTTP GET, POST, PUT, DELETE for ${resourceName} resources.`,
+          proposedPackage: `${basePkg}.controller`
+        },
+        {
+          file: `[NEW FILE] ${backendSrc}/service/${resourceName}Service.java`,
+          purpose: `Service interface defining core business methods for ${resourceName}.`,
+          proposedPackage: `${basePkg}.service`
+        },
+        {
+          file: `[NEW FILE] ${backendSrc}/dto/${resourceName}RequestDTO.java`,
+          purpose: `Request payload validation schema annotated with @NotBlank and Jakarta constraints.`,
+          proposedPackage: `${basePkg}.dto`
+        }
+      ],
+      boilerplateCode: `package ${basePkg}.controller;\n\nimport ${basePkg}.dto.${resourceName}RequestDTO;\nimport ${basePkg}.service.${resourceName}Service;\nimport jakarta.validation.Valid;\nimport lombok.RequiredArgsConstructor;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.security.access.prepost.PreAuthorize;\nimport org.springframework.web.bind.annotation.*;\nimport java.util.List;\n\n@RestController\n@RequestMapping("/api/v1/${resourceLower}")\n@RequiredArgsConstructor\n@CrossOrigin(origins = "*")\npublic class ${controllerClass} {\n\n    private final ${resourceName}Service ${resourceLower}Service;\n\n    @GetMapping\n    public ResponseEntity<List<Object>> getAll() {\n        return ResponseEntity.ok(${resourceLower}Service.getAll());\n    }\n\n    @GetMapping("/{id}")\n    public ResponseEntity<Object> getById(@PathVariable Long id) {\n        return ResponseEntity.ok(${resourceLower}Service.getById(id));\n    }\n\n    @PostMapping\n    @PreAuthorize("hasRole('ADMIN')")\n    public ResponseEntity<Object> create(@Valid @RequestBody ${resourceName}RequestDTO dto) {\n        return new ResponseEntity<>(${resourceLower}Service.create(dto), HttpStatus.CREATED);\n    }\n\n    @DeleteMapping("/{id}")\n    @PreAuthorize("hasRole('ADMIN')")\n    public ResponseEntity<Void> delete(@PathVariable Long id) {\n        ${resourceLower}Service.delete(id);\n        return ResponseEntity.noContent().build();\n    }\n}`,
+      backendChanges: `Add ${controllerClass} annotated with @RestController and @RequestMapping("/api/v1/${resourceLower}"). Inject ${resourceName}Service via constructor injection.`,
+      frontendChanges: `In ${frontendSrc}/services/api.js, add: export const ${resourceLower}Api = { getAll: () => api.get('/${resourceLower}'), getById: (id) => api.get(\`/\${resourceLower}/\${id}\`), create: (data) => api.post('/${resourceLower}', data) };`,
+      databaseChanges: `If ${resourceName} requires persistent state, create entity @Entity @Table(name = "${resourceLower}s") and add Flyway migration V2__create_${resourceLower}s.sql.`,
+      apiChanges: `Exposes GET /api/v1/${resourceLower}, GET /api/v1/${resourceLower}/{id}, POST /api/v1/${resourceLower}, and DELETE /api/v1/${resourceLower}/{id}.`,
+      dependenciesRequired: ['Spring Boot Starter Web (already in pom.xml)', 'Spring Boot Starter Validation (already in pom.xml)'],
+      implementationSequence: [
+        `Step 1: Create [NEW FILE] ${backendSrc}/dto/${resourceName}RequestDTO.java with Jakarta validation annotations.`,
+        `Step 2: Create [NEW FILE] ${backendSrc}/service/${resourceName}Service.java defining business logic interface.`,
+        `Step 3: Create [NEW FILE] ${backendSrc}/controller/${controllerClass}.java with REST mappings and security rules.`,
+        `Step 4: In ${backendSrc}/config/SecurityConfig.java, add .requestMatchers("/api/v1/${resourceLower}/**").authenticated().`,
+        `Step 5: In ${frontendSrc}/services/api.js, export the ${resourceLower}Api client functions.`
+      ],
+      testingRequirements: [
+        `Controller WebMvcTest: Verify GET /api/v1/${resourceLower} returns 200 OK and POST returns 201 Created.`,
+        `Security test: Verify unauthenticated requests to POST /api/v1/${resourceLower} return 401 or 403.`
+      ]
+    };
+  }
+
+  if (isPy) {
+    return {
+      feature: `Adding ${resourceName} Router & Wiring into FastAPI App`,
+      existingArchitecture: 'FastAPI Microservice Architecture (APIRouter -> Service -> SQLAlchemy Model / Celery Task).',
+      wiringInstructions: `It can be done right here in this component by doing this:\n1. Place your new router in: \`${backendSrc}/routers/${resourceLower}.py\`.\n2. Wire it into \`${backendSrc}/main.py\` by doing: \`from routers.${resourceLower} import router as ${resourceLower}_router\` and \`app.include_router(${resourceLower}_router, prefix="/api/v1/${resourceLower}", tags=["${resourceName}"])\`.\n3. Secure endpoints by injecting: \`current_user: User = Depends(get_current_active_user)\`.\n4. Call your business logic in \`${backendSrc}/services/${resourceLower}_service.py\` or database session \`db: Session = Depends(get_db)\`.`,
+      existingFilesToModify: [
+        {
+          file: `${backendSrc}/main.py`,
+          reason: `Mount the ${resourceLower} APIRouter into the FastAPI application instance.`,
+          targetSymbol: 'app.include_router()'
+        }
+      ],
+      newFilesToCreate: [
+        {
+          file: `[NEW FILE] ${backendSrc}/routers/${resourceLower}.py`,
+          purpose: `FastAPI APIRouter defining HTTP endpoints for ${resourceName}.`,
+          proposedPackage: 'routers'
+        },
+        {
+          file: `[NEW FILE] ${backendSrc}/schemas/${resourceLower}.py`,
+          purpose: `Pydantic BaseModel request and response schemas.`,
+          proposedPackage: 'schemas'
+        }
+      ],
+      boilerplateCode: `from fastapi import APIRouter, Depends, HTTPException, status\nfrom typing import List\nfrom pydantic import BaseModel\n\nrouter = APIRouter()\n\nclass ${resourceName}Create(BaseModel):\n    title: str\n    description: str = ""\n\nclass ${resourceName}Response(BaseModel):\n    id: int\n    title: str\n\n@router.get("/", response_model=List[${resourceName}Response])\ndef get_all():\n    return [{"id": 1, "title": "Sample ${resourceName}"}]\n\n@router.post("/", response_model=${resourceName}Response, status_code=status.HTTP_201_CREATED)\ndef create(payload: ${resourceName}Create):\n    return {"id": 1, "title": payload.title}\n`,
+      backendChanges: `Add router module with Pydantic validation schemas. Include router in main.py.`,
+      frontendChanges: `Connect API calls using Axios or fetch from frontend UI.`,
+      databaseChanges: `Add SQLAlchemy model in models/${resourceLower}.py if table is needed.`,
+      apiChanges: `Exposes GET /api/v1/${resourceLower} and POST /api/v1/${resourceLower}.`,
+      dependenciesRequired: ['fastapi', 'pydantic'],
+      implementationSequence: [
+        `Step 1: Create [NEW FILE] ${backendSrc}/schemas/${resourceLower}.py with Pydantic models.`,
+        `Step 2: Create [NEW FILE] ${backendSrc}/routers/${resourceLower}.py.`,
+        `Step 3: In ${backendSrc}/main.py, add app.include_router(${resourceLower}_router, prefix="/api/v1/${resourceLower}", tags=["${resourceName}"]).`,
+        `Step 4: Verify interactive Swagger docs at http://localhost:8000/docs.`
+      ],
+      testingRequirements: [`pytest test_api.py verifying GET and POST response status.`]
+    };
+  }
+
+  // Node / Express / TypeScript
+  return {
+    feature: `Adding ${controllerClass} & Wiring into Express App`,
+    existingArchitecture: 'Express.js MVC Architecture (Router -> Controller -> Service -> Prisma ORM).',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. Create your controller router in: \`${backendSrc}/controllers/${resourceLower}.controller.ts\`.\n2. Wire it into \`${backendSrc}/server.ts\` by doing: \`import { ${resourceLower}Router } from './controllers/${resourceLower}.controller';\` and \`app.use('/api/v1/${resourceLower}', ${resourceLower}Router);\`. \n3. Protect the endpoints by doing: adding \`authenticateJwt\` middleware to the router routes.\n4. Call your database queries via Prisma: \`await prisma.${resourceLower}.findMany()\`.`,
+    existingFilesToModify: [
+      {
+        file: `${backendSrc}/server.ts`,
+        reason: `Register the new ${resourceLower}Router into Express middleware chain.`,
+        targetSymbol: 'app.use()'
+      }
+    ],
+    newFilesToCreate: [
+      {
+        file: `[NEW FILE] ${backendSrc}/controllers/${resourceLower}.controller.ts`,
+        purpose: `Router handling HTTP endpoints for ${resourceName}.`,
+        proposedPackage: 'controllers'
+      }
+    ],
+    boilerplateCode: `import { Router, Response } from 'express';\nimport { authenticateJwt, AuthenticatedRequest } from '../middlewares/auth.middleware';\n\nconst router = Router();\n\n// GET all\nrouter.get('/', authenticateJwt, async (req: AuthenticatedRequest, res: Response) => {\n  return res.json({ success: true, message: '${resourceName} data retrieved for tenant ' + req.tenantId });\n});\n\n// POST create\nrouter.post('/', authenticateJwt, async (req: AuthenticatedRequest, res: Response) => {\n  const payload = req.body;\n  return res.status(201).json({ success: true, message: '${resourceName} created successfully', data: payload });\n});\n\nexport const ${resourceLower}Router = router;`,
+    backendChanges: `Mount ${resourceLower}Router in server.ts under /api/v1/${resourceLower}.`,
+    frontendChanges: `Invoke /api/v1/${resourceLower} using client HTTP library.`,
+    databaseChanges: `Add model in prisma/schema.prisma if persistence is needed.`,
+    apiChanges: `Exposes GET /api/v1/${resourceLower} and POST /api/v1/${resourceLower}.`,
+    dependenciesRequired: ['express', 'zod'],
+    implementationSequence: [
+      `Step 1: Create [NEW FILE] ${backendSrc}/controllers/${resourceLower}.controller.ts.`,
+      `Step 2: In ${backendSrc}/server.ts, import ${resourceLower}Router and add app.use('/api/v1/${resourceLower}', ${resourceLower}Router).`,
+      `Step 3: Test endpoints with Postman or Jest.`
+    ],
+    testingRequirements: [`Jest integration test checking 200 OK and 201 Created responses.`]
+  };
+}
+
 function generateJwtBlueprint(analysis, backendSrc, frontendSrc, basePkg, isJava, isNode, isPy) {
   if (isJava) {
     return {
       feature: 'JWT Authentication and Stateless Security',
       existingArchitecture: 'Spring Boot 3.x Tiered Architecture with Spring Security Filter Chain and JPA persistence.',
+      wiringInstructions: `It can be done right here in this component by doing this:\n1. Open \`${backendSrc}/config/SecurityConfig.java\` and configure \`.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\`.\n2. Add the JWT filter by doing: \`.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)\`.\n3. Create \`JwtService.java\` in \`${basePkg}.config\` to handle signing HMAC-SHA256 tokens.\n4. In \`AuthService.java\`, inject \`JwtService\` and return the token upon successful \`login()\` and \`register()\`.\n5. On the frontend, in \`${frontendSrc}/services/api.js\`, attach \`Authorization: Bearer <token>\` inside the Axios interceptor.`,
       existingFilesToModify: [
         {
           file: `${backendSrc}/config/SecurityConfig.java`,
@@ -124,6 +300,7 @@ function generateJwtBlueprint(analysis, backendSrc, frontendSrc, basePkg, isJava
   return {
     feature: 'JWT Authentication',
     existingArchitecture: 'Modular Client-Server Architecture.',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. In \`${backendSrc}/server.ts\`, register \`authRouter\`.\n2. In \`${backendSrc}/middlewares/auth.middleware.ts\`, add token validation with \`jwt.verify(token, secret)\`.\n3. Wrap protected routes with \`authenticateJwt\`.`,
     existingFilesToModify: [
       { file: `${backendSrc}/server.ts`, reason: 'Register auth router and authentication middleware.', targetSymbol: 'app.use()' },
       { file: 'package.json', reason: 'Add jsonwebtoken and bcryptjs dependencies.', targetSymbol: 'dependencies' }
@@ -151,6 +328,7 @@ function generateEmailVerificationBlueprint(analysis, backendSrc, frontendSrc, b
   return {
     feature: 'User Email Verification Workflow',
     existingArchitecture: isJava ? 'Spring Boot Tiered Architecture with JPA & Mail' : 'Express/FastAPI Service',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. In \`User.java\`, add \`isEmailVerified\` and \`verificationToken\` attributes.\n2. In \`AuthService.java\`, right after creating the user, generate a token and call \`EmailService.sendVerificationEmail(user, token)\`.\n3. In \`AuthController.java\`, add endpoint: \`@GetMapping("/verify-email")\`.\n4. On the frontend, in \`App.jsx\`, create a route for \`/verify-email\` pointing to \`VerifyEmail.jsx\`.`,
     existingFilesToModify: [
       {
         file: isJava ? `${backendSrc}/entity/User.java` : `${backendSrc}/models/User.ts`,
@@ -209,6 +387,7 @@ function generateRedisCachingBlueprint(analysis, backendSrc, frontendSrc, basePk
   return {
     feature: 'Redis In-Memory Caching Integration',
     existingArchitecture: 'Layered Service Tier with high-read database queries.',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. In \`EnterpriseApplication.java\`, add \`@EnableCaching\`.\n2. In \`EmployeeServiceImpl.java\`, decorate \`getEmployeeById(Long id)\` by doing: \`@Cacheable(value = "employees", key = "#id")\`.\n3. In mutation methods (\`updateEmployee\`, \`deleteEmployee\`), add: \`@CacheEvict(value = "employees", key = "#id")\` to keep cache synchronized.\n4. Create \`RedisConfig.java\` in \`${basePkg}.config\` to customize 3600-second TTL.`,
     existingFilesToModify: [
       {
         file: isJava ? 'backend/pom.xml' : 'package.json',
@@ -260,6 +439,7 @@ function generatePaginationBlueprint(analysis, backendSrc, frontendSrc, basePkg,
   return {
     feature: 'Server-Side Pagination & Sorting',
     existingArchitecture: 'Controller-Service-Repository Tier with REST responses.',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. In \`EmployeeController.java\`, accept \`@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size\`.\n2. In \`EmployeeService.java\`, change return type to \`Page<Employee>\`.\n3. In \`Dashboard.jsx\`, connect the pagination state \`page\` and \`totalPages\` to Prev/Next buttons.`,
     existingFilesToModify: [
       {
         file: isJava ? `${backendSrc}/repository/EmployeeRepository.java` : `${backendSrc}/repositories/employee.repo.ts`,
@@ -311,6 +491,7 @@ function generateAdminDashboardBlueprint(analysis, backendSrc, frontendSrc, base
   return {
     feature: 'Admin Analytics & Management Dashboard',
     existingArchitecture: 'Role-guarded backend endpoints with decoupled React frontend.',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. In \`AdminController.java\`, expose \`GET /api/v1/admin/stats\` guarded with \`@PreAuthorize("hasRole('ADMIN')")\`.\n2. In \`EmployeeRepository.java\`, add aggregate metrics: \`@Query("SELECT COUNT(e) FROM Employee e")\`.\n3. In frontend \`App.jsx\`, add a guarded route \`<ProtectedRoute role="ROLE_ADMIN"><AdminDashboard /></ProtectedRoute>\`.`,
     existingFilesToModify: [
       {
         file: isJava ? `${backendSrc}/controller/EmployeeController.java` : `${backendSrc}/controllers/employee.controller.ts`,
@@ -367,6 +548,7 @@ function generatePaymentBlueprint(analysis, backendSrc, frontendSrc, basePkg, is
   return {
     feature: 'Stripe Payment Gateway Integration',
     existingArchitecture: 'REST Service with asynchronous webhook notification handler.',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. In \`PaymentController.java\`, expose \`POST /api/v1/payments/create-checkout-session\`.\n2. In \`SecurityConfig.java\`, mark \`/payments/webhook\` as \`permitAll()\` and disable CSRF on it.\n3. In \`PaymentService.java\`, initialize \`Stripe.apiKey\` and construct webhook events.\n4. In frontend, wire the Checkout button to redirect to Stripe Session URL.`,
     existingFilesToModify: [
       {
         file: isJava ? 'backend/pom.xml' : 'package.json',
@@ -425,11 +607,12 @@ function generateGenericFeatureBlueprint(featureName, analysis, backendSrc, fron
   return {
     feature: featureName,
     existingArchitecture: 'Layered Modular Architecture.',
+    wiringInstructions: `It can be done right here in this component by doing this:\n1. Create [NEW FILE] \`${backendSrc}/controller/${sanitized}Controller.java\`.\n2. In \`SecurityConfig.java\`, add authorization matchers for \`/${sanitized.toLowerCase()}/**\`.\n3. Encapsulate business logic in \`${backendSrc}/service/${sanitized}Service.java\`.\n4. Wire client communication in \`${frontendSrc}/services/api.js\`.`,
     existingFilesToModify: [
       {
-        file: `${backendSrc}/controller/EmployeeController.java`,
-        reason: `Modify controller or register dedicated endpoint for ${featureName}.`,
-        targetSymbol: 'controller mapping'
+        file: `${backendSrc}/config/SecurityConfig.java`,
+        reason: `Authorize routes for ${featureName}.`,
+        targetSymbol: 'securityFilterChain()'
       },
       {
         file: `${frontendSrc}/services/api.js`,
