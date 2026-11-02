@@ -18,11 +18,15 @@ import {
   ChevronDown,
   ExternalLink,
   BookOpen,
-  Package
+  Package,
+  Download,
+  Search,
+  Sparkles
 } from 'lucide-react';
 
 export default function ProjectOverviewView({ repoOverview, onOpenFileInMonaco }) {
   const [activeLayer, setActiveLayer] = useState('restControllers');
+  const [layerSearch, setLayerSearch] = useState('');
 
   if (!repoOverview || !repoOverview.analysis) {
     return (
@@ -86,6 +90,26 @@ export default function ProjectOverviewView({ repoOverview, onOpenFileInMonaco }
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '1000px', marginTop: '0.4rem', lineHeight: 1.5 }}>
               {architecture.summary}
             </p>
+            <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.6rem' }}>
+              <button 
+                className="btn-secondary btn-sm"
+                onClick={() => window.open(`/api/repository/${repoOverview.id}/export?format=md`, '_blank')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.8rem' }}
+                title="Download complete Markdown dossier"
+              >
+                <Download size={14} />
+                <span>Export Dossier (.md)</span>
+              </button>
+              <button 
+                className="btn-secondary btn-sm"
+                onClick={() => window.open(`/api/repository/${repoOverview.id}/export?format=json`, '_blank')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.8rem' }}
+                title="Download complete JSON AST blueprint"
+              >
+                <FileText size={14} />
+                <span>Export Blueprint (JSON)</span>
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '1rem' }}>
@@ -198,52 +222,78 @@ export default function ProjectOverviewView({ repoOverview, onOpenFileInMonaco }
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.5rem', alignItems: 'start' }}>
         {/* Layer Selector List */}
         <div className="glass-card" style={{ padding: '0.75rem' }}>
-          <div style={{ padding: '0.75rem', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          <div style={{ padding: '0.5rem 0.5rem 0.75rem', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
             Complete Project Layers (15 Layers)
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {layerSections.map(layer => {
-              const Icon = layer.icon;
-              const isSelected = activeLayer === layer.id;
-              return (
-                <button
-                  key={layer.id}
-                  onClick={() => setActiveLayer(layer.id)}
-                  style={{
-                    background: isSelected ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                    border: 'none',
-                    borderLeft: isSelected ? '3px solid var(--primary)' : '3px solid transparent',
-                    color: isSelected ? '#fff' : 'var(--text-muted)',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
-                    textAlign: 'left',
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: '0.82rem',
-                    fontWeight: isSelected ? 700 : 500,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    transition: 'all 0.15s ease'
-                  }}
+          <div style={{ marginBottom: '0.75rem', padding: '0 0.25rem' }}>
+            <div className="search-box" style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }}>
+              <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <input 
+                type="text" 
+                placeholder="Search 15 layers..." 
+                value={layerSearch}
+                onChange={e => setLayerSearch(e.target.value)}
+                style={{ fontSize: '0.82rem' }}
+              />
+              {layerSearch && (
+                <button 
+                  onClick={() => setLayerSearch('')}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Icon size={16} style={{ color: isSelected ? 'var(--primary)' : 'var(--text-dim)' }} />
-                    <span>{layer.label}</span>
-                  </div>
-                  <span style={{
-                    fontSize: '0.72rem',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '10px',
-                    background: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                    color: '#fff',
-                    fontWeight: 700
-                  }}>
-                    {layer.count}
-                  </span>
+                  ×
                 </button>
-              );
-            })}
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {layerSections
+              .filter(layer => {
+                if (!layerSearch) return true;
+                const q = layerSearch.toLowerCase();
+                return layer.label.toLowerCase().includes(q) || layer.id.toLowerCase().includes(q);
+              })
+              .map(layer => {
+                const Icon = layer.icon;
+                const isSelected = activeLayer === layer.id;
+                return (
+                  <button
+                    key={layer.id}
+                    onClick={() => setActiveLayer(layer.id)}
+                    style={{
+                      background: isSelected ? 'var(--primary-badge-bg)' : 'transparent',
+                      border: 'none',
+                      borderLeft: isSelected ? '3px solid var(--primary)' : '3px solid transparent',
+                      color: isSelected ? '#fff' : 'var(--text-muted)',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                      textAlign: 'left',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '0.82rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Icon size={16} style={{ color: isSelected ? 'var(--primary)' : 'var(--text-dim)' }} />
+                      <span>{layer.label}</span>
+                    </div>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '10px',
+                      background: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                      color: '#fff',
+                      fontWeight: 700
+                    }}>
+                      {layer.count}
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         </div>
 

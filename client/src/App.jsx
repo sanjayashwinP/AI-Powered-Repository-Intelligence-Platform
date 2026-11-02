@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import UploadModal from './components/UploadModal';
+import GuideModal from './components/GuideModal';
 import MonacoEditorModal from './components/MonacoEditorModal';
 import ProjectOverviewView from './components/ProjectOverviewView';
 import FeatureDiscoveryView from './components/FeatureDiscoveryView';
@@ -17,7 +18,9 @@ import {
   Wrench, 
   FileCode,
   Loader2,
-  Cpu
+  Cpu,
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 
 export default function App() {
@@ -25,14 +28,38 @@ export default function App() {
   const [selectedRepo, setSelectedRepo] = useState(null);
   const [repoOverview, setRepoOverview] = useState(null);
   const [featureInventory, setFeatureInventory] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'features' | 'chat' | 'where-to-implement' | 'recommendations'
+  const [activeTab, setActiveTab] = useState('overview');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  
+  // Multi-Theme State (Aurora Emerald default)
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    return localStorage.getItem('repomind-theme') || 'aurora';
+  });
+
   const [monacoModal, setMonacoModal] = useState({
     isOpen: false,
     filePath: '',
     targetLine: null
   });
   const [loading, setLoading] = useState(true);
+
+  // Sync theme to root DOM
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('repomind-theme', currentTheme);
+  }, [currentTheme]);
+
+  const handleThemeChange = (newTheme) => {
+    setCurrentTheme(newTheme);
+    showToast(`Switched theme to ${newTheme.toUpperCase()}`);
+  };
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // Fetch repositories on startup
   useEffect(() => {
@@ -82,10 +109,29 @@ export default function App() {
   const handleSelectRepo = (repo) => {
     setSelectedRepo(repo);
     loadRepoDetails(repo.id);
+    showToast(`Loaded repository: ${repo.name}`);
   };
 
   const handleRepoUploaded = (newRepoId) => {
     fetchRepositories(newRepoId);
+    showToast('Repository analyzed and loaded successfully!');
+  };
+
+  const handleDeleteRepo = async (repoId, repoName) => {
+    if (!window.confirm(`Are you sure you want to remove "${repoName}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/repository/${repoId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Repository removed');
+        fetchRepositories();
+      } else {
+        alert(data.error || 'Failed to remove repository');
+      }
+    } catch (err) {
+      alert(`Error removing repository: ${err.message}`);
+    }
   };
 
   const openFileInMonaco = (filePath, targetLine = 1) => {
@@ -108,6 +154,10 @@ export default function App() {
         selectedRepo={selectedRepo}
         onSelectRepo={handleSelectRepo}
         onOpenUploadModal={() => setIsUploadModalOpen(true)}
+        onOpenGuideModal={() => setIsGuideModalOpen(true)}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
+        onDeleteRepo={handleDeleteRepo}
       />
 
       {/* Main Navigation Tabs Header */}
@@ -241,7 +291,23 @@ export default function App() {
         onRepoUploaded={handleRepoUploaded}
         repositories={repositories}
         onSelectRepo={handleSelectRepo}
+        onDeleteRepo={handleDeleteRepo}
       />
+
+      {/* Platform Capabilities & Guide Walkthrough Modal */}
+      <GuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
+        onSelectTab={(tab) => setActiveTab(tab)}
+      />
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div className="toast-banner">
+          <CheckCircle2 size={18} style={{ color: 'var(--primary)' }} />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

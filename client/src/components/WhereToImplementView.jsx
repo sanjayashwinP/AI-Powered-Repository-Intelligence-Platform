@@ -10,7 +10,8 @@ import {
   Code2, 
   Search,
   Sparkles,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 
 export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
@@ -36,6 +37,47 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
     navigator.clipboard.writeText(text);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleDownloadBlueprint = () => {
+    if (!blueprint) return;
+    let md = `# Architecture Roadmap: ${blueprint.feature}\n\n`;
+    md += `## Existing Architecture Context\n${blueprint.existingArchitecture}\n\n`;
+    if (blueprint.wiringInstructions) {
+      md += `## Wiring Guide\n${blueprint.wiringInstructions}\n\n`;
+    }
+    if (blueprint.existingFiles && blueprint.existingFiles.length) {
+      md += `## Existing Files to Modify\n`;
+      blueprint.existingFiles.forEach(f => {
+        md += `- **${f.file}**: ${f.reason} (Target: \`${f.targetSymbol || 'N/A'}\`)\n`;
+      });
+      md += `\n`;
+    }
+    if (blueprint.newFiles && blueprint.newFiles.length) {
+      md += `## New Files to Create\n`;
+      blueprint.newFiles.forEach(f => {
+        md += `### [NEW FILE] ${f.file} (${f.tier || ''})\n- Purpose: ${f.purpose}\n`;
+        if (f.boilerplateCode) {
+          md += `\`\`\`${f.language || ''}\n${f.boilerplateCode}\n\`\`\`\n`;
+        }
+      });
+      md += `\n`;
+    }
+    if (blueprint.implementationSequence && blueprint.implementationSequence.length) {
+      md += `## Step-by-Step Implementation Sequence\n`;
+      blueprint.implementationSequence.forEach((s, idx) => {
+        md += `${idx + 1}. **${s.step}**: ${s.details}\n`;
+      });
+      md += `\n`;
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blueprint-${blueprint.feature.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleGeneratePlan = async (query) => {
@@ -141,18 +183,29 @@ export default function WhereToImplementView({ repoId, onOpenFileInMonaco }) {
       {blueprint && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Blueprint Title & Architecture */}
-          <div className="glass-card" style={{ borderLeft: '4px solid var(--primary)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="brand-badge" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc' }}>
-                ARCHITECTURE ROADMAP
-              </span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Target Feature: <strong style={{ color: '#fff' }}>{blueprint.feature}</strong>
-              </span>
+          <div className="glass-card" style={{ borderLeft: '4px solid var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="brand-badge">
+                  ARCHITECTURE ROADMAP
+                </span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Target Feature: <strong style={{ color: '#fff' }}>{blueprint.feature}</strong>
+                </span>
+              </div>
+              <div style={{ marginTop: '0.75rem', fontSize: '0.92rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                <strong>Existing Architecture Context:</strong> {blueprint.existingArchitecture}
+              </div>
             </div>
-            <div style={{ marginTop: '0.75rem', fontSize: '0.92rem', color: '#cbd5e1', lineHeight: 1.5 }}>
-              <strong>Existing Architecture Context:</strong> {blueprint.existingArchitecture}
-            </div>
+            <button
+              className="btn-secondary btn-sm"
+              onClick={handleDownloadBlueprint}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              title="Download Roadmap as Markdown"
+            >
+              <Download size={13} />
+              <span>Export Blueprint (.md)</span>
+            </button>
           </div>
 
           {/* Explicit Wiring Instructions Banner ("It can be done right here in this component by doing this:") */}

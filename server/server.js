@@ -848,6 +848,101 @@ app.get('/api/repository/:id/module-runbooks', (req, res) => {
   });
 });
 
+// 15. System Health Check Endpoint (For Docker & Cloud Deployments)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'RepoMind Intelligence Platform',
+    version: '2.4.0',
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    repositoriesLoaded: repoRegistry.size,
+    memoryUsageMB: {
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
+    },
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// 16. Delete Repository (for user-uploaded or imported repositories)
+app.delete('/api/repository/:id', (req, res) => {
+  const repo = repoRegistry.get(req.params.id);
+  if (!repo) return res.status(404).json({ error: 'Repository not found.' });
+
+  if (repo.isSample) {
+    return res.status(403).json({ error: 'Sample repositories cannot be deleted as they are core seeds.' });
+  }
+
+  try {
+    if (repo.path && repo.path.includes('uploads') && fs.existsSync(repo.path)) {
+      fs.rmSync(repo.path, { recursive: true, force: true });
+    }
+    repoRegistry.delete(req.params.id);
+
+    res.json({
+      success: true,
+      message: `Repository "${repo.name}" was successfully removed.`
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to delete repository: ${err.message}` });
+  }
+});
+
+// 17. Export Full Architecture Dossier (JSON / Markdown)
+app.get('/api/repository/:id/export', (req, res) => {
+  const repo = repoRegistry.get(req.params.id);
+  if (!repo) return res.status(404).json({ error: 'Repository not found.' });
+
+  const format = req.query.format || 'json';
+  if (format === 'json') {
+    return res.json({
+      exportedAt: new Date().toISOString(),
+      repository: {
+        id: repo.id,
+        name: repo.name,
+        description: repo.description,
+        isSample: repo.isSample,
+        analysis: repo.analysis,
+        featureInventory: repo.featureInventory
+      }
+    });
+  }
+
+  // Markdown export
+  const { analysis, featureInventory } = repo;
+  let md = `# Architecture & Intelligence Dossier: ${repo.name}\n\n`;
+  md += `> Exported from RepoMind on ${new Date().toLocaleString()}\n\n`;
+  md += `## 1. Project Summary\n`;
+  md += `- **Pattern**: ${analysis.architecture.pattern}\n`;
+  md += `- **Total Files**: ${analysis.fileCount}\n`;
+  md += `- **Total Lines of Code**: ${analysis.totalLines.toLocaleString()}\n`;
+  md += `- **Languages**: ${analysis.technologies.languages.join(', ')}\n`;
+  md += `- **Frameworks**: ${analysis.technologies.frameworks.join(', ')}\n\n`;
+  md += `### Architecture Synopsis\n${analysis.architecture.summary}\n\n`;
+
+  md += `## 2. Feature Discovery Summary\n`;
+  md += `- **Total Features Detected**: ${featureInventory.stats.total}\n`;
+  md += `- **Implemented**: ${featureInventory.stats.implemented}\n`;
+  md += `- **Partially Implemented**: ${featureInventory.stats.partial}\n`;
+  md += `- **Not Found**: ${featureInventory.stats.notFound}\n`;
+  md += `- **Needs Verification**: ${featureInventory.stats.needsVerification}\n\n`;
+
+  md += `### Feature List\n`;
+  (featureInventory.features || []).forEach(f => {
+    md += `#### [${f.status}] ${f.name} (${f.category})\n`;
+    md += `- **Description**: ${f.description}\n`;
+    md += `- **Evidence**: \`${f.evidence}\`\n`;
+    if (f.files && f.files.length) md += `- **Files**: ${f.files.map(fi => fi.path || fi).join(', ')}\n`;
+    md += `\n`;
+  });
+
+  res.setHeader('Content-Type', 'text/markdown');
+  res.setHeader('Content-Disposition', `attachment; filename="${repo.id}-dossier.md"`);
+  res.send(md);
+});
+
 // Serve built client frontend
 const clientDist = path.join(ROOT_DIR, 'client', 'dist');
 if (fs.existsSync(clientDist)) {

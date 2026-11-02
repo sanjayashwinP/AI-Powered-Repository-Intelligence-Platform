@@ -43,6 +43,17 @@ export default function ConversationalQAView({ repoId, repoName, onOpenFileInMon
     scrollToBottom();
   }, [messages, loading]);
 
+  useEffect(() => {
+    setMessages([
+      {
+        role: 'assistant',
+        content: `Repository **${repoName}** loaded and indexed via static AST analysis.\n\nYou can ask any architectural question about controllers, services, database models, request lifecycles, or where and how to implement new features.`,
+        references: [],
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+  }, [repoId, repoName]);
+
   const handleSend = async (queryToSend) => {
     const text = (queryToSend || inputQuery).trim();
     if (!text || loading) return;

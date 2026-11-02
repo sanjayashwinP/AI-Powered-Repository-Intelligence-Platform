@@ -14,7 +14,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   FileDiff,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { DiffEditor } from '@monaco-editor/react';
 
@@ -114,6 +115,18 @@ export default function RecommendationsView({ repoId, onOpenFileInMonaco }) {
     } catch (err) {
       setActionMsg({ type: 'error', text: err.message });
     }
+  };
+
+  const handleDownloadPatch = () => {
+    if (!patchData || !selectedRec) return;
+    const patchContent = `# RepoMind Safe Patch\n# Target: ${patchData.filePath}\n# Title: [${selectedRec.priority}] ${selectedRec.title}\n# Created: ${new Date().toISOString()}\n\n${patchData.diffUnified || patchData.proposedCode}`;
+    const blob = new Blob([patchContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedRec.id}-patch.diff`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const filteredRecs = recommendations.filter(r => 
@@ -320,6 +333,15 @@ export default function RecommendationsView({ repoId, onOpenFileInMonaco }) {
                     >
                       <Undo2 size={13} />
                       Rollback
+                    </button>
+
+                    <button 
+                      className="btn-secondary btn-sm"
+                      onClick={handleDownloadPatch}
+                      title="Download proposed diff as .patch file for git apply"
+                    >
+                      <Download size={13} />
+                      Download .patch
                     </button>
 
                     <button 

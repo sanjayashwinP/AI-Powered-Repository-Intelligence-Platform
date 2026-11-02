@@ -1,0 +1,13 @@
+node_modules
+client/node_modules
+client/dist
+.git
+.gitignore
+.vscode
+*.log
+npm-debug.log*
+server/temp_uploads/*
+!server/temp_uploads/.gitkeep
+.repomind_backups
+.DS_Store
+Thumbs.db

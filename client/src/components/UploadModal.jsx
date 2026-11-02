@@ -8,7 +8,9 @@ import {
   Sparkles, 
   CheckCircle2, 
   AlertCircle,
-  Loader2
+  Loader2,
+  Layers,
+  Trash2
 } from 'lucide-react';
 
 export default function UploadModal({ 
@@ -16,7 +18,8 @@ export default function UploadModal({
   onClose, 
   onRepoUploaded, 
   repositories, 
-  onSelectRepo 
+  onSelectRepo,
+  onDeleteRepo
 }) {
   const [activeTab, setActiveTab] = useState('zip');
   const [zipFile, setZipFile] = useState(null);
@@ -137,11 +140,12 @@ export default function UploadModal({
               width: 38,
               height: 38,
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+              background: 'linear-gradient(135deg, var(--brand-from), var(--brand-to))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff'
+              color: '#fff',
+              boxShadow: '0 0 15px var(--primary-glow)'
             }}>
               <Upload size={20} />
             </div>
@@ -167,13 +171,15 @@ export default function UploadModal({
           display: 'flex', 
           borderBottom: '1px solid var(--border-subtle)', 
           background: 'rgba(0,0,0,0.2)',
-          padding: '0 1.5rem'
+          padding: '0 1.5rem',
+          overflowX: 'auto'
         }}>
           {[
             { id: 'zip', label: 'ZIP Archive', icon: FolderArchive },
-            { id: 'github', label: 'GitHub Repository URL', icon: GitBranch },
-            { id: 'local', label: 'Local Directory Folder', icon: FolderSearch },
+            { id: 'github', label: 'GitHub URL', icon: GitBranch },
+            { id: 'local', label: 'Local Folder', icon: FolderSearch },
             { id: 'samples', label: 'Sample Projects', icon: Sparkles },
+            { id: 'manage', label: `All Repositories (${repositories.length})`, icon: Layers },
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -467,6 +473,76 @@ export default function UploadModal({
                   >
                     Select Repository
                   </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TAB 5: All Repositories & Management */}
+          {activeTab === 'manage' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Active repositories loaded in RepoMind ({repositories.length}):
+              </p>
+
+              {repositories.map(repo => (
+                <div 
+                  key={repo.id}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1rem 1.1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1rem'
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                      <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {repo.name}
+                      </h4>
+                      <span className="brand-badge" style={{ fontSize: '0.65rem' }}>
+                        {repo.isSample ? 'Sample Seed' : 'Custom Upload'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {repo.fileCount} source files • {repo.totalLines?.toLocaleString() || 0} lines • {repo.languages?.join(', ')}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button 
+                      className="btn-secondary btn-sm"
+                      onClick={() => {
+                        onSelectRepo(repo);
+                        onClose();
+                      }}
+                    >
+                      Select
+                    </button>
+                    {!repo.isSample && onDeleteRepo && (
+                      <button 
+                        onClick={() => onDeleteRepo(repo.id, repo.name)}
+                        style={{
+                          background: 'rgba(244, 63, 94, 0.12)',
+                          border: '1px solid rgba(244, 63, 94, 0.35)',
+                          color: '#fb7185',
+                          padding: '0.4rem',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Delete this uploaded project"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
